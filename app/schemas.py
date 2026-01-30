@@ -31,3 +31,21 @@ class BlockResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class ContractDetails(BaseModel):
+    creator_tx: str
+    creation_block: int
+    bytecode_hash: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+class AddressResponse(BaseModel):
+    address: str
+    first_seen_block: Optional[int]
+    is_contract: bool
+    balance_cached: Optional[int]
+    contract_details: Optional[ContractDetails] = None
+
+    class Config:
+        from_attributes = True
