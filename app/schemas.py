@@ -40,12 +40,19 @@ class ContractDetails(BaseModel):
     class Config:
         from_attributes = True
 
+class TokenBalance(BaseModel):
+    token_address: str
+    symbol: Optional[str]
+    decimals: Optional[int]
+    balance: int # Raw balance
+
 class AddressResponse(BaseModel):
     address: str
     first_seen_block: Optional[int]
     is_contract: bool
     balance_cached: Optional[int]
     contract_details: Optional[ContractDetails] = None
+    tokens: List[TokenBalance] = []
 
     class Config:
         from_attributes = True

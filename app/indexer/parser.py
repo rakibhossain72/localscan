@@ -17,4 +17,5 @@ def parse_block(w3, block_number):
         "gas_limit": block.gasLimit,
         "tx_count": len(block.transactions),
         "transactions": block.transactions,
+        # Logs will be fetched via receipts in processing stage
     }
