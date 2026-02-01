@@ -175,9 +175,30 @@ async def transaction_detail(request: Request, tx_hash: str, db: Session = Depen
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
         
+    # Fetch associated token transfers
+    from app.db.models import TokenTransfer, Token
+    tt_stmt = select(TokenTransfer).where(TokenTransfer.tx_hash == query_hash)
+    tts = db.execute(tt_stmt).scalars().all()
+    
+    token_transfers = []
+    for tt in tts:
+        token_info = db.execute(select(Token).where(Token.address == tt.token_address)).scalar_one_or_none()
+        decimals = token_info.decimals if token_info else 18
+        human = Decimal(int(tt.amount)) / (Decimal(10) ** decimals)
+        token_transfers.append({
+            "token_address": tt.token_address,
+            "token_name": token_info.name if token_info else "Unknown Token",
+            "token_symbol": token_info.symbol if token_info else "UNK",
+            "from": tt.from_address,
+            "to": tt.to_address,
+            "amount": format(human.normalize(), 'f'),
+            "decimals": decimals
+        })
+
     return templates.TemplateResponse("transaction.html", {
         "request": request,
-        "transaction": tx
+        "transaction": tx,
+        "token_transfers": token_transfers
     })
 
 @router.get("/address/{address}")
