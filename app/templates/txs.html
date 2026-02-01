@@ -35,7 +35,7 @@
                         <td class="px-6 py-4">
                             <a href="/address/{{ tx.to_address }}" class="text-blue-500 text-sm truncate block w-32">{{ tx.to_address }}</a>
                         </td>
-                        <td class="px-6 py-4 font-semibold text-sm">{{ tx.value or 0 }} ETH</td>
+                        <td class="px-6 py-4 font-semibold text-sm">{{ tx.value | from_wei }} ETH</td>
                     </tr>
                     {% endfor %}
                 </tbody>

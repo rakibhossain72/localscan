@@ -84,8 +84,8 @@ def save_transaction(session, tx, block_number, tx_index, w3):
 
             print("token addree:", token_address)
             
-            # Ensure Token exists
-            ensure_token(session, w3, token_address)
+            # Ensure Token exists and is up to date
+            ensure_token(session, w3, token_address, force_update=True)
             
             # Extract params
             # topics[1] is from, topics[2] is to. They are 32 bytes, need to strip padding.
@@ -126,10 +126,10 @@ def save_transaction(session, tx, block_number, tx_index, w3):
                 print(f"Error parsing transfer log: {e}")
 
 
-def ensure_token(session, w3, token_address):
+def ensure_token(session, w3, token_address, force_update=False):
     # Check if token exists, if not, fetch metadata
     token = session.get(Token, token_address)
-    if not token:
+    if not token or force_update:
         # Fetch from RPC
         try:
             contract = w3.eth.contract(address=token_address, abi=ERC20_ABI)
@@ -167,7 +167,7 @@ def ensure_token(session, w3, token_address):
                 decimals=decimals,
                 total_supply=str(total_supply_val or 0)
             )
-            session.add(new_token)
+            session.merge(new_token)
             
         except Exception as e:
             # Silently ignore if it's not a contract or doesn't support basic calls

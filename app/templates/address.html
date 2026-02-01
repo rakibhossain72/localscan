@@ -26,9 +26,9 @@
                     <div class="sm:col-span-2 text-sm text-slate-900 font-mono break-all">{{ address.address }}</div>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 border-b border-slate-50 pb-4 italic">
-                    <div class="text-xs font-medium text-slate-500 uppercase tracking-wider italic">ETH Balance:</div>
-                    <div class="sm:col-span-2 text-sm text-slate-900 font-bold italic">{{ address.balance_cached or 0 }} ETH</div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 border-b border-slate-50 pb-4">
+                    <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">ETH Balance:</div>
+                    <div class="sm:col-span-2 text-sm text-slate-900 font-bold">{{ address.balance_cached | from_wei }} ETH</div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 italic">
@@ -58,7 +58,7 @@
                             </div>
                         </div>
                         <div class="text-right">
-                            <p class="text-sm font-bold text-slate-900">{{ tb.balance }}</p>
+                            <p class="text-sm font-bold text-slate-900">{{ tb.balance | format_token(tb.decimals) }}</p>
                         </div>
                     </div>
                     {% endfor %}
@@ -112,7 +112,7 @@
                             </div>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-4 font-semibold text-sm">{{ tx.value or 0 }} ETH</td>
+                        <td class="px-6 py-4 font-semibold text-sm">{{ tx.value | from_wei }} ETH</td>
                     </tr>
                     {% endfor %}
                 </tbody>
