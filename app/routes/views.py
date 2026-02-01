@@ -268,11 +268,34 @@ async def address_detail(request: Request, address: str, db: Session = Depends(g
     ).order_by(desc(Transaction.block_number), desc(Transaction.tx_index)).limit(20)
     txs = db.execute(tx_stmt).scalars().all()
 
+    # Fetch latest token transfers for this address
+    from app.db.models import TokenTransfer
+    tt_stmt = select(TokenTransfer).where(
+        (TokenTransfer.from_address == checksum_addr) | (TokenTransfer.to_address == checksum_addr)
+    ).order_by(desc(TokenTransfer.block_number), desc(TokenTransfer.id)).limit(20)
+    tts = db.execute(tt_stmt).scalars().all()
+    
+    token_txs = []
+    for tt in tts:
+        token_info = db.execute(select(Token).where(Token.address == tt.token_address)).scalar_one_or_none()
+        decimals = token_info.decimals if token_info else 18
+        human = Decimal(int(tt.amount)) / (Decimal(10) ** decimals)
+        token_txs.append({
+            "tx_hash": tt.tx_hash,
+            "block_number": tt.block_number,
+            "token_address": tt.token_address,
+            "token_symbol": token_info.symbol if token_info else "UNK",
+            "from": tt.from_address,
+            "to": tt.to_address,
+            "amount": format(human.normalize(), 'f')
+        })
+
     return templates.TemplateResponse("address.html", {
         "request": request,
         "address": addr_obj,
         "token_balances": token_balances,
-        "transactions": txs
+        "transactions": txs,
+        "token_transfers": token_txs
     })
 
 @router.get("/token/{address}")

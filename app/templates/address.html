@@ -75,49 +75,143 @@
         </div>
     </div>
 
-    <!-- Transaction History -->
+    <!-- Transaction History Card with Tabs -->
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-            <h2 class="font-semibold text-slate-800 italic">Transaction History</h2>
+        <div class="border-b border-slate-100 bg-slate-50/50 px-4">
+            <nav class="flex space-x-6" aria-label="Tabs">
+                <button 
+                    onclick="switchTab('native')" 
+                    id="tab-native"
+                    class="tab-btn active border-b-2 border-blue-600 py-4 px-1 text-sm font-bold text-blue-600 outline-none"
+                >
+                    Native Transactions
+                </button>
+                <button 
+                    onclick="switchTab('tokens')" 
+                    id="tab-tokens"
+                    class="tab-btn border-b-2 border-transparent py-4 px-1 text-sm font-medium text-slate-500 hover:text-slate-700 hover:border-slate-300 outline-none"
+                >
+                    Token Transfers (ERC-20)
+                </button>
+            </nav>
         </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left">
-                <thead class="bg-slate-50 border-b border-slate-100 italic text-slate-500 text-xs">
-                    <tr>
-                        <th class="px-6 py-3 font-medium italic">Txn Hash</th>
-                        <th class="px-6 py-3 font-medium italic">Block</th>
-                        <th class="px-6 py-3 font-medium italic">From/To</th>
-                        <th class="px-6 py-3 font-medium italic">Value</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    {% for tx in transactions %}
-                    <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="px-6 py-4">
-                            <a href="/tx/0x{{ tx.hash }}" class="text-blue-600 font-medium hover:text-blue-700 block truncate w-32 md:w-48">0x{{ tx.hash }}</a>
-                        </td>
-                        <td class="px-6 py-4">
-                             <a href="/block/{{ tx.block_number }}" class="text-blue-500 text-sm">#{{ tx.block_number }}</a>
-                        </td>
-                        <td class="px-6 py-4">
-                            {% if tx.from_address == address.address %}
-                            <div class="flex items-center space-x-2">
-                                <span class="bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded text-[10px] font-bold">OUT</span>
-                                <a href="/address/{{ tx.to_address }}" class="text-blue-500 text-xs truncate block w-24">{{ tx.to_address }}</a>
-                            </div>
-                            {% else %}
-                            <div class="flex items-center space-x-2">
-                                <span class="bg-green-50 text-green-700 px-1.5 py-0.5 rounded text-[10px] font-bold">IN</span>
-                                <a href="/address/{{ tx.from_address }}" class="text-blue-500 text-xs truncate block w-24">{{ tx.from_address }}</a>
-                            </div>
-                            {% endif %}
-                        </td>
-                        <td class="px-6 py-4 font-semibold text-sm">{{ tx.value | from_wei }} ETH</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+
+        <div class="overflow-x-auto min-h-[300px]">
+            <!-- Native Transactions Tab -->
+            <div id="content-native" class="tab-content block">
+                {% if transactions %}
+                <table class="w-full text-left">
+                    <thead class="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs">
+                        <tr>
+                            <th class="px-6 py-3 font-medium">Txn Hash</th>
+                            <th class="px-6 py-3 font-medium">Block</th>
+                            <th class="px-6 py-3 font-medium">From/To</th>
+                            <th class="px-6 py-3 font-medium">Value</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for tx in transactions %}
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="px-6 py-4">
+                                <a href="/tx/0x{{ tx.hash }}" class="text-blue-600 font-medium hover:text-blue-700 block truncate w-32 md:w-48">0x{{ tx.hash }}</a>
+                            </td>
+                            <td class="px-6 py-4">
+                                 <a href="/block/{{ tx.block_number }}" class="text-blue-500 text-sm">#{{ tx.block_number }}</a>
+                            </td>
+                            <td class="px-6 py-4">
+                                {% if tx.from_address == address.address %}
+                                <div class="flex items-center space-x-2">
+                                    <span class="bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded text-[10px] font-bold">OUT</span>
+                                    <a href="/address/{{ tx.to_address }}" class="text-blue-500 text-xs truncate block w-24">{% if tx.to_address %}{{ tx.to_address[:12] }}...{% else %}Contract Creation{% endif %}</a>
+                                </div>
+                                {% else %}
+                                <div class="flex items-center space-x-2">
+                                    <span class="bg-green-50 text-green-700 px-1.5 py-0.5 rounded text-[10px] font-bold">IN</span>
+                                    <a href="/address/{{ tx.from_address }}" class="text-blue-500 text-xs truncate block w-24">{{ tx.from_address[:12] }}...</a>
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 font-semibold text-sm">{{ tx.value | from_wei }} ETH</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="text-center py-20">
+                    <p class="text-slate-500 text-sm">No native transactions found.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Token Transfers Tab -->
+            <div id="content-tokens" class="tab-content hidden">
+                {% if token_transfers %}
+                <table class="w-full text-left">
+                    <thead class="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs">
+                        <tr>
+                            <th class="px-6 py-3 font-medium">Txn Hash</th>
+                            <th class="px-6 py-3 font-medium">Block</th>
+                            <th class="px-6 py-3 font-medium">From/To</th>
+                            <th class="px-6 py-3 font-medium">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for tt in token_transfers %}
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="px-6 py-4">
+                                <a href="/tx/0x{{ tt.tx_hash }}" class="text-blue-600 font-medium hover:text-blue-700 block truncate w-32 md:w-48">0x{{ tt.tx_hash }}</a>
+                            </td>
+                            <td class="px-6 py-4">
+                                 <a href="/block/{{ tt.block_number }}" class="text-blue-500 text-sm">#{{ tt.block_number }}</a>
+                            </td>
+                            <td class="px-6 py-4">
+                                {% if tt.from == address.address %}
+                                <div class="flex items-center space-x-2">
+                                    <span class="bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded text-[10px] font-bold">OUT</span>
+                                    <a href="/address/{{ tt.to }}" class="text-blue-500 text-xs truncate block w-24">{{ tt.to[:12] }}...</a>
+                                </div>
+                                {% else %}
+                                <div class="flex items-center space-x-2">
+                                    <span class="bg-green-50 text-green-700 px-1.5 py-0.5 rounded text-[10px] font-bold">IN</span>
+                                    <a href="/address/{{ tt.from }}" class="text-blue-500 text-xs truncate block w-24">{{ tt.from[:12] }}...</a>
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 font-semibold text-sm">
+                                {{ tt.amount }} 
+                                <a href="/token/{{ tt.token_address }}" class="text-blue-500 hover:underline hover:text-blue-700">{{ tt.token_symbol }}</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="text-center py-20">
+                    <p class="text-slate-500 text-sm">No token transfers found.</p>
+                </div>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+function switchTab(tab) {
+    // Hide all contents
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.replace('block', 'hidden'));
+    // Show selected content
+    document.getElementById('content-' + tab).classList.replace('hidden', 'block');
+    
+    // Reset all buttons
+    document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('active', 'border-blue-600', 'text-blue-600', 'font-bold');
+        b.classList.add('border-transparent', 'text-slate-500', 'font-medium');
+    });
+    
+    // Set active button
+    const activeBtn = document.getElementById('tab-' + tab);
+    activeBtn.classList.add('active', 'border-blue-600', 'text-blue-600', 'font-bold');
+    activeBtn.classList.remove('border-transparent', 'text-slate-500', 'font-medium');
+}
+</script>
 {% endblock %}
