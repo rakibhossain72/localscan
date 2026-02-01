@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Blocks - LocalScan{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-slate-900">Blocks</h1>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead class="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs uppercase tracking-wider">
+                    <tr>
+                        <th class="px-6 py-3 font-medium">Block</th>
+                        <th class="px-6 py-3 font-medium">Age</th>
+                        <th class="px-6 py-3 font-medium">Txns</th>
+                        <th class="px-6 py-3 font-medium">Miner</th>
+                        <th class="px-6 py-3 font-medium">Gas Used</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for block in blocks %}
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-6 py-4">
+                            <a href="/block/{{ block.number }}" class="text-blue-600 font-medium hover:text-blue-700">#{{ block.number }}</a>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-slate-500">{{ block.timestamp }}</td>
+                        <td class="px-6 py-4 text-sm text-slate-900">{{ block.tx_count }}</td>
+                        <td class="px-6 py-4">
+                            <a href="/address/{{ block.miner }}" class="text-blue-500 text-sm truncate block w-32">{{ block.miner }}</a>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-slate-900">{{ block.gas_used }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

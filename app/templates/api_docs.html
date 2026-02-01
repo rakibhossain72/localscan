@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}API Documentation - LocalScan{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-12">
+    <div>
+        <h1 class="text-4xl font-bold text-slate-900 mb-4">API Documentation</h1>
+        <p class="text-slate-600 text-lg">The LocalScan Indexer API provides programmatic access to blockchain data. All responses are returned in JSON format.</p>
+    </div>
+
+    <div class="space-y-8">
+        <!-- Explorer Section -->
+        <section>
+            <h2 class="text-2xl font-bold text-slate-800 mb-6 flex items-center">
+                <span class="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center mr-3">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"></path></svg>
+                </span>
+                Blockchain Data
+            </h2>
+
+            <div class="space-y-6">
+                <!-- Get Block -->
+                <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                    <div class="p-6">
+                        <div class="flex items-center space-x-3 mb-4">
+                            <span class="bg-green-100 text-green-700 px-2.5 py-1 rounded text-xs font-bold">GET</span>
+                            <code class="text-slate-900 font-mono text-sm">/blocks/{block_number}</code>
+                        </div>
+                        <p class="text-slate-600 mb-4">Retrieve detailed information about a specific block, including its transactions.</p>
+                        <div class="bg-slate-900 rounded-lg p-4">
+                            <pre class="text-blue-400 text-xs overflow-x-auto"><code>{
+  "number": 12345,
+  "hash": "0x...",
+  "timestamp": "2026-02-02 00:00:00",
+  "transactions": [...]
+}</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Get Transaction -->
+                <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                    <div class="p-6">
+                        <div class="flex items-center space-x-3 mb-4">
+                            <span class="bg-green-100 text-green-700 px-2.5 py-1 rounded text-xs font-bold">GET</span>
+                            <code class="text-slate-900 font-mono text-sm">/transactions/{tx_hash}</code>
+                        </div>
+                        <p class="text-slate-600 mb-4">Fetch details for a specific transaction by its hash.</p>
+                        <div class="bg-slate-900 rounded-lg p-4">
+                            <pre class="text-blue-400 text-xs overflow-x-auto"><code>{
+  "hash": "0x...",
+  "from_address": "0x...",
+  "to_address": "0x...",
+  "value": "1.5",
+  "status": "success"
+}</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Get Address -->
+                <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                    <div class="p-6">
+                        <div class="flex items-center space-x-3 mb-4">
+                            <span class="bg-green-100 text-green-700 px-2.5 py-1 rounded text-xs font-bold">GET</span>
+                            <code class="text-slate-900 font-mono text-sm">/addresses/{address}</code>
+                        </div>
+                        <p class="text-slate-600 mb-4">Get exhaustive details for an address, including ETH balance, contract status, and token holdings.</p>
+                        <div class="bg-slate-900 rounded-lg p-4">
+                            <pre class="text-blue-400 text-xs overflow-x-auto"><code>{
+  "address": "0x...",
+  "balance_cached": "100.5",
+  "is_contract": true,
+  "tokens": [
+    { "symbol": "USDC", "balance": "500.0" }
+  ]
+}</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}

@@ -1,6 +1,7 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
-from app.routes import blocks, transactions, addresses
+from app.routes import blocks, transactions, addresses, views
 from app.indexer.background import start_indexer_thread
 
 @asynccontextmanager
@@ -12,6 +13,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="LocalScan Indexer API", lifespan=lifespan)
 
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+app.include_router(views.router)
 app.include_router(blocks.router)
 app.include_router(transactions.router)
 app.include_router(addresses.router)

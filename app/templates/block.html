@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Block #{{ block.number }} - LocalScan{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center space-x-2 text-sm text-slate-500">
+        <a href="/" class="hover:text-blue-600">Home</a>
+        <span>/</span>
+        <span class="text-slate-900 font-medium">Block {{ block.number }}</span>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+            <h1 class="text-xl font-bold text-slate-900">Block <span class="text-slate-500 font-normal">#{{ block.number }}</span></h1>
+        </div>
+        
+        <div class="p-6 space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-50 pb-4">
+                <div class="text-sm font-medium text-slate-500">Block Height:</div>
+                <div class="md:col-span-2 text-sm text-slate-900 font-semibold">{{ block.number }}</div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-50 pb-4">
+                <div class="text-sm font-medium text-slate-500">Timestamp:</div>
+                <div class="md:col-span-2 text-sm text-slate-900">{{ block.timestamp }}</div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-50 pb-4">
+                <div class="text-sm font-medium text-slate-500">Hash:</div>
+                <div class="md:col-span-2 text-sm text-slate-900 font-mono break-all">0x{{ block.hash }}</div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-50 pb-4">
+                <div class="text-sm font-medium text-slate-500">Parent Hash:</div>
+                <div class="md:col-span-2 text-sm text-slate-900 font-mono break-all">
+                    <a href="/block_hash/{{ block.parent_hash }}" class="text-blue-600 hover:underline">0x{{ block.parent_hash }}</a>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-50 pb-4">
+                <div class="text-sm font-medium text-slate-500">Transactions:</div>
+                <div class="md:col-span-2 text-sm text-slate-900">
+                    <span class="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-bold">{{ block.transactions | length }} transactions</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="text-sm font-medium text-slate-500">Gas Used/Limit:</div>
+                <div class="md:col-span-2 text-sm text-slate-900">{{ block.gas_used }} / {{ block.gas_limit }}</div>
+            </div>
+        </div>
+    </div>
+
+    {% if block.transactions %}
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+            <h2 class="font-semibold text-slate-800">Transactions in this Block</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead class="bg-slate-50 border-b border-slate-100 italic text-slate-500 text-xs">
+                    <tr>
+                        <th class="px-6 py-3 font-medium">Txn Hash</th>
+                        <th class="px-6 py-3 font-medium">From</th>
+                        <th class="px-6 py-3 font-medium">To</th>
+                        <th class="px-6 py-3 font-medium">Value</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for tx in block.transactions %}
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-6 py-4">
+                            <a href="/tx/0x{{ tx.hash }}" class="text-blue-600 font-medium hover:text-blue-700 block truncate w-32 md:w-48">0x{{ tx.hash }}</a>
+                        </td>
+                        <td class="px-6 py-4">
+                            <a href="/address/{{ tx.from_address }}" class="text-blue-500 text-sm truncate block w-24 md:w-32">{{ tx.from_address }}</a>
+                        </td>
+                        <td class="px-6 py-4">
+                            <a href="/address/{{ tx.to_address }}" class="text-blue-500 text-sm truncate block w-24 md:w-32">{{ tx.to_address }}</a>
+                        </td>
+                        <td class="px-6 py-4 font-semibold text-sm">{{ tx.value or 0 }} ETH</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
