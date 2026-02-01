@@ -80,9 +80,6 @@ def save_transaction(session, tx, block_number, tx_index, w3):
         if log.topics and log.topics[0].hex() == TRANSFER_TOPIC and len(log.topics) == 3:
             # It looks like a Transfer event (indexed from, indexed to, uint value)
             token_address = to_checksum_address(log.address)
-            print("logs:",log.topics[0].hex(), len(log.topics) == 3, "address", log.address)
-
-            print("token addree:", token_address)
             
             # Ensure Token exists and is up to date
             ensure_token(session, w3, token_address, force_update=True)
@@ -101,7 +98,6 @@ def save_transaction(session, tx, block_number, tx_index, w3):
                 # data contains value
                 t_value = int(log.data.hex(), 16)
 
-                print(t_value)
                 
                 # Save Token Transfer
                 # We should upsert addresses primarily here too in case they were only seen in logs
@@ -118,9 +114,9 @@ def save_transaction(session, tx, block_number, tx_index, w3):
                 )
                 session.add(transfer_rec)
                 
-                # Update Cached Balances
-                update_token_balance(session, t_from, token_address, -t_value)
-                update_token_balance(session, t_to, token_address, t_value)
+                # Update Cached Balances from Chain
+                sync_on_chain_token_balance(session, w3, t_from, token_address, block_number)
+                sync_on_chain_token_balance(session, w3, t_to, token_address, block_number)
                 
             except Exception as e:
                 print(f"Error parsing transfer log: {e}")
@@ -189,31 +185,50 @@ def upsert_address(session, w3, addr, block_num, is_contract=False):
             address=addr,
             first_seen_block=block_num,
             is_contract=is_contract,
-            balance_cached=str(balance) 
+            balance_cached=str(max(0, balance)) 
         )
         session.add(new_addr)
         if is_contract:
             ensure_token(session, w3, addr)
     else:
         # Update balance and potentially contract flag
-        existing.balance_cached = str(balance)
+        existing.balance_cached = str(max(0, balance))
         if is_contract and not existing.is_contract:
             existing.is_contract = True
             # New contract identified, check if it's a token
             ensure_token(session, w3, addr)
 
 
+def sync_on_chain_token_balance(session, w3, address, token_address, block_num):
+    """Fetch exact token balance from chain and sync to DB."""
+    try:
+        contract = w3.eth.contract(address=token_address, abi=ERC20_ABI)
+        balance = contract.functions.balanceOf(address).call(block_identifier=block_num)
+        
+        bal_obj = session.get(TokenBalance, {"address": address, "token_address": token_address})
+        if bal_obj:
+            bal_obj.balance = str(balance)
+        else:
+            new_obj = TokenBalance(
+                address=address,
+                token_address=token_address,
+                balance=str(balance)
+            )
+            session.add(new_obj)
+    except Exception as e:
+        print(f"Error syncing on-chain token balance for {address} on token {token_address}: {e}")
+
 def update_token_balance(session, address, token_address, amount_change):
     # amount_change: positive for addition, negative for subtraction
     bal_obj = session.get(TokenBalance, {"address": address, "token_address": token_address})
     if bal_obj:
         new_bal = int(bal_obj.balance) + amount_change
-        bal_obj.balance = str(new_bal)
+        bal_obj.balance = str(max(0, new_bal))
     else:
         new_obj = TokenBalance(
             address=address,
             token_address=token_address,
-            balance=str(amount_change)
+            balance=str(max(0, amount_change))
         )
         session.add(new_obj)
 

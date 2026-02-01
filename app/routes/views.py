@@ -1,10 +1,15 @@
 from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi.responses import RedirectResponse
 from typing import Union
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import select, desc
 from sqlalchemy.orm import selectinload
 from eth_utils import to_checksum_address
+from decimal import Decimal, getcontext
+
+# Set high precision for financial calculations
+getcontext().prec = 50
 
 from app.db.models import Block, Transaction, Address, Contract, Token, TokenBalance
 from app.dependencies import get_db
@@ -23,15 +28,18 @@ templates = Jinja2Templates(directory="app/templates")
 def from_wei_filter(value):
     if value is None: return "0"
     try:
-        return Web3.from_wei(int(value), 'ether')
+        # Convert to Decimal for exact precision
+        human = Decimal(int(value)) / (Decimal(10) ** 18)
+        # Format as fixed-point string, normalizing to remove trailing zeros
+        return format(human.normalize(), 'f')
     except:
         return value
 
 def format_token_balance(value, decimals=18):
     if value is None: return "0"
     try:
-        val = int(value)
-        return val / (10 ** decimals)
+        human = Decimal(int(value)) / (Decimal(10) ** decimals)
+        return format(human.normalize(), 'f')
     except:
         return value
 
@@ -182,6 +190,12 @@ async def address_detail(request: Request, address: str, db: Session = Depends(g
     stmt = select(Address).where(Address.address == checksum_addr)
     addr_obj = db.execute(stmt).scalar_one_or_none()
     
+    # Check if this address is a Token contract
+    stmt_token = select(Token).where(Token.address == checksum_addr)
+    token_exists = db.execute(stmt_token).scalar_one_or_none()
+    if token_exists:
+        return RedirectResponse(url=f"/token/{checksum_addr}")
+
     if not addr_obj:
         # Try fetching from chain
         try:
@@ -215,11 +229,16 @@ async def address_detail(request: Request, address: str, db: Session = Depends(g
     token_balances = []
     for tb in balances:
         token_info = db.execute(select(Token).where(Token.address == tb.token_address)).scalar_one_or_none()
+        decimals = token_info.decimals if token_info else 18
+        raw_balance = int(tb.balance)
+        human = Decimal(raw_balance) / (Decimal(10) ** decimals)
+        formatted_balance = format(human.normalize(), 'f')
         token_balances.append({
             "token_address": tb.token_address,
             "symbol": token_info.symbol if token_info else "UNK",
-            "decimals": token_info.decimals if token_info else 18,
-            "balance": tb.balance
+            "decimals": decimals,
+            "balance": tb.balance,
+            "formatted_balance": formatted_balance
         })
 
     # Fetch latest transactions for this address
@@ -233,6 +252,71 @@ async def address_detail(request: Request, address: str, db: Session = Depends(g
         "address": addr_obj,
         "token_balances": token_balances,
         "transactions": txs
+    })
+
+@router.get("/token/{address}")
+async def token_detail(request: Request, address: str, db: Session = Depends(get_db)):
+    try:
+        checksum_addr = to_checksum_address(address)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid address format")
+
+    stmt = select(Token).where(Token.address == checksum_addr)
+    token = db.execute(stmt).scalar_one_or_none()
+    
+    if not token:
+        # If it's not a token, maybe it's just a regular address
+        return await address_detail(request, address, db)
+
+    # Fetch top holders - need to sort by numeric balance
+    from sqlalchemy import cast, Numeric
+    holders_stmt = (
+        select(TokenBalance)
+        .where(TokenBalance.token_address == checksum_addr)
+        .order_by(desc(cast(TokenBalance.balance, Numeric)))
+        .limit(50)
+    )
+    holders_objs = db.execute(holders_stmt).scalars().all()
+    
+    # Fetch token transfers for history
+    from app.db.models import TokenTransfer
+    transfers_stmt = (
+        select(TokenTransfer)
+        .where(TokenTransfer.token_address == checksum_addr)
+        .order_by(desc(TokenTransfer.block_number), desc(TokenTransfer.id))
+        .limit(20)
+    )
+    transfers = db.execute(transfers_stmt).scalars().all()
+
+    # Format holders
+    formatted_holders = []
+    for h in holders_objs:
+        raw_bal = int(h.balance)
+        human = Decimal(raw_bal) / (Decimal(10) ** token.decimals) if token.decimals else Decimal(raw_bal)
+        formatted_holders.append({
+            "address": h.address,
+            "balance": h.balance,
+            "formatted_balance": format(human.normalize(), 'f')
+        })
+
+    # Format transfers
+    formatted_transfers = []
+    for t in transfers:
+        raw_amt = int(t.amount)
+        human = Decimal(raw_amt) / (Decimal(10) ** token.decimals) if token.decimals else Decimal(raw_amt)
+        formatted_transfers.append({
+            "tx_hash": t.tx_hash,
+            "from_address": t.from_address,
+            "to_address": t.to_address,
+            "amount": t.amount,
+            "formatted_amount": format(human.normalize(), 'f')
+        })
+
+    return templates.TemplateResponse("token.html", {
+        "request": request,
+        "token": token,
+        "holders": formatted_holders,
+        "transfers": formatted_transfers
     })
 
 @router.get("/api/docs")

@@ -101,6 +101,13 @@ class Address(Base):
         String(78), nullable=True
     )  # wei as string
 
+    __table_args__ = (
+        CheckConstraint(
+            "balance_cached IS NULL OR (SUBSTR(balance_cached, 1, 1) <> '-')",
+            name="ck_address_balance_non_negative"
+        ),
+    )
+
 
 class Contract(Base):
     __tablename__ = "contracts"
@@ -133,6 +140,13 @@ class Token(Base):
     symbol: Mapped[str] = mapped_column(String(32), nullable=True)
     decimals: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     total_supply: Mapped[Optional[str]] = mapped_column(String(78), nullable=True)  # as string
+
+    __table_args__ = (
+        CheckConstraint(
+            "total_supply IS NULL OR (SUBSTR(total_supply, 1, 1) <> '-')",
+            name="ck_token_total_supply_non_negative"
+        ),
+    )
 
 
 class TokenTransfer(Base):
@@ -169,4 +183,8 @@ class TokenBalance(Base):
     __table_args__ = (
         Index("ix_token_balances_address", "address"),
         Index("ix_token_balances_token_address", "token_address"),
+        CheckConstraint(
+            "SUBSTR(balance, 1, 1) <> '-'",
+            name="ck_token_balance_non_negative"
+        ),
     )

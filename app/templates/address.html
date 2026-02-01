@@ -53,12 +53,12 @@
                                 {{ tb.symbol[:2] }}
                             </div>
                             <div>
-                                <p class="text-sm font-semibold text-slate-900">{{ tb.symbol }}</p>
+                                <a href="/token/{{ tb.token_address }}" class="text-sm font-semibold text-slate-900 hover:text-blue-600 transition-colors">{{ tb.symbol }}</a>
                                 <p class="text-[10px] text-slate-500 font-mono">{{ tb.token_address[:16] }}...</p>
                             </div>
                         </div>
                         <div class="text-right">
-                            <p class="text-sm font-bold text-slate-900">{{ tb.balance | format_token(tb.decimals) }}</p>
+                            <p class="text-sm font-bold text-slate-900">{{ tb.formatted_balance }}</p>
                         </div>
                     </div>
                     {% endfor %}
