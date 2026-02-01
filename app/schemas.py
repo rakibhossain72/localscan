@@ -14,6 +14,7 @@ class TransactionResponse(BaseModel):
     input: Optional[str]
     nonce: int
     status: Optional[int]
+    contract_address: Optional[str]
 
     class Config:
         from_attributes = True
@@ -46,12 +47,22 @@ class TokenBalance(BaseModel):
     decimals: Optional[int]
     balance: int # Raw balance
 
+class TokenDetails(BaseModel):
+    name: Optional[str]
+    symbol: Optional[str]
+    decimals: Optional[int]
+    total_supply: Optional[str]
+
+    class Config:
+        from_attributes = True
+
 class AddressResponse(BaseModel):
     address: str
     first_seen_block: Optional[int]
     is_contract: bool
-    balance_cached: Optional[int]
+    balance_cached: Optional[str]
     contract_details: Optional[ContractDetails] = None
+    token_details: Optional[TokenDetails] = None
     tokens: List[TokenBalance] = []
 
     class Config:

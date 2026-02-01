@@ -1,9 +1,9 @@
 from eth_utils import to_checksum_address
 from sqlalchemy import delete, select
-from app.db.models import Block, Transaction, Address, Contract, Token, TokenTransfer
+from app.db.models import Block, Transaction, Address, Contract, Token, TokenTransfer, TokenBalance
 from app.indexer.abis import ERC20_ABI
 
-def save_block(session, block_data):
+def save_block(session, block_data, w3):
     # We use merge to handle "INSERT OR REPLACE" - upsert semantics
     new_block = Block(
         number=block_data["number"],
@@ -16,6 +16,9 @@ def save_block(session, block_data):
         tx_count=block_data["tx_count"]
     )
     session.merge(new_block)
+    
+    # Upsert miner address
+    upsert_address(session, w3, to_checksum_address(block_data["miner"]), block_data["number"])
 
 
 def save_transaction(session, tx, block_number, tx_index, w3):
@@ -27,12 +30,13 @@ def save_transaction(session, tx, block_number, tx_index, w3):
         tx_index=tx_index,
         from_address=to_checksum_address(tx["from"]),
         to_address=to_checksum_address(tx["to"]) if tx["to"] else None,
-        value=tx["value"],
+        value=str(tx["value"]),
         gas=tx["gas"],
-        gas_price=tx["gasPrice"],
+        gas_price=str(tx["gasPrice"]),
         input=tx["input"].hex(),
         nonce=tx["nonce"],
-        status=receipt.status
+        status=receipt.status,
+        contract_address=to_checksum_address(tx.get("contractAddress")) if tx.get("contractAddress") else None,
     )
     session.merge(new_tx)
 
@@ -41,18 +45,18 @@ def save_transaction(session, tx, block_number, tx_index, w3):
     # ------------------
     from_addr = to_checksum_address(tx["from"])
     
-    upsert_address(session, from_addr, block_number, is_contract=False)
+    upsert_address(session, w3, from_addr, block_number, is_contract=False)
 
     to_addr_raw = tx.get("to")
     if to_addr_raw:
         to_addr = to_checksum_address(to_addr_raw)
-        upsert_address(session, to_addr, block_number, is_contract=False)
+        upsert_address(session, w3, to_addr, block_number, is_contract=False)
     else:
         # Contract Creation
         contract_address = receipt.get("contractAddress")
         if contract_address:
             c_addr = to_checksum_address(contract_address)
-            upsert_address(session, c_addr, block_number, is_contract=True)
+            upsert_address(session, w3, c_addr, block_number, is_contract=True)
 
             # Save Contract Details
             new_contract = Contract(
@@ -68,13 +72,17 @@ def save_transaction(session, tx, block_number, tx_index, w3):
     # ------------------
     # Transfer event signature: Transfer(address,address,uint256)
     # topic0 = keccak('Transfer(address,address,uint256)')
-    TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+    TRANSFER_TOPIC = "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
     
     for log in receipt.logs:
+        print( log.topics[0].hex(),  TRANSFER_TOPIC, len(log.topics) == 3)
         # Make sure topics is at least length 1 before accessing index 0
         if log.topics and log.topics[0].hex() == TRANSFER_TOPIC and len(log.topics) == 3:
             # It looks like a Transfer event (indexed from, indexed to, uint value)
             token_address = to_checksum_address(log.address)
+            print("logs:",log.topics[0].hex(), len(log.topics) == 3, "address", log.address)
+
+            print("token addree:", token_address)
             
             # Ensure Token exists
             ensure_token(session, w3, token_address)
@@ -92,11 +100,13 @@ def save_transaction(session, tx, block_number, tx_index, w3):
                 
                 # data contains value
                 t_value = int(log.data.hex(), 16)
+
+                print(t_value)
                 
                 # Save Token Transfer
                 # We should upsert addresses primarily here too in case they were only seen in logs
-                upsert_address(session, t_from, block_number)
-                upsert_address(session, t_to, block_number)
+                upsert_address(session, w3, t_from, block_number)
+                upsert_address(session, w3, t_to, block_number)
                 
                 transfer_rec = TokenTransfer(
                     tx_hash=tx.hash.hex(),
@@ -104,9 +114,13 @@ def save_transaction(session, tx, block_number, tx_index, w3):
                     token_address=token_address,
                     from_address=t_from,
                     to_address=t_to,
-                    amount=t_value
+                    amount=str(t_value)
                 )
                 session.add(transfer_rec)
+                
+                # Update Cached Balances
+                update_token_balance(session, t_from, token_address, -t_value)
+                update_token_balance(session, t_to, token_address, t_value)
                 
             except Exception as e:
                 print(f"Error parsing transfer log: {e}")
@@ -136,47 +150,84 @@ def ensure_token(session, w3, token_address):
             except:
                 decimals = 18
             
+            total_supply_val = None
             try:
-                total_supply = contract.functions.totalSupply().call()
+                total_supply_val = contract.functions.totalSupply().call()
             except:
-                total_supply = 0
+                pass
                 
+            # If we can't get any standard ERC20 info, it's likely not a token
+            if name == "Unknown" and symbol == "UNK" and total_supply_val is None:
+                return
+
             new_token = Token(
                 address=token_address,
                 name=name,
                 symbol=symbol,
                 decimals=decimals,
-                total_supply=total_supply
+                total_supply=str(total_supply_val or 0)
             )
             session.add(new_token)
             
-            # Also ensure it's in contracts/addresses
-            # We assume it is a contract 
-            upsert_address(session, token_address, 0, is_contract=True)
-            
         except Exception as e:
-            print(f"Failed to fetch token info for {token_address}: {e}")
+            # Silently ignore if it's not a contract or doesn't support basic calls
+            pass
 
 
-def upsert_address(session, addr, block_num, is_contract=False):
-    # Helper to upsert address
-    # We use session.get or check existing to update flags if needed
+def upsert_address(session, w3, addr, block_num, is_contract=False):
+    # Helper to upsert address and update native balance
+    balance = 0
+    if w3:
+        try:
+            balance = w3.eth.get_balance(addr, block_num)
+        except Exception as e:
+            print(f"Failed to fetch balance for {addr} at block {block_num}: {e}")
+
     existing = session.get(Address, addr)
     if not existing:
         new_addr = Address(
             address=addr,
             first_seen_block=block_num,
             is_contract=is_contract,
-            balance_cached=0 
+            balance_cached=str(balance) 
         )
         session.add(new_addr)
+        if is_contract:
+            ensure_token(session, w3, addr)
     else:
-        # Update contract flag if we just discovered it's a contract
+        # Update balance and potentially contract flag
+        existing.balance_cached = str(balance)
         if is_contract and not existing.is_contract:
             existing.is_contract = True
+            # New contract identified, check if it's a token
+            ensure_token(session, w3, addr)
+
+
+def update_token_balance(session, address, token_address, amount_change):
+    # amount_change: positive for addition, negative for subtraction
+    bal_obj = session.get(TokenBalance, {"address": address, "token_address": token_address})
+    if bal_obj:
+        new_bal = int(bal_obj.balance) + amount_change
+        bal_obj.balance = str(new_bal)
+    else:
+        new_obj = TokenBalance(
+            address=address,
+            token_address=token_address,
+            balance=str(amount_change)
+        )
+        session.add(new_obj)
 
 
 def rollback_block(session, block_number):
+    # Fetch transfers in this block to reverse balances
+    stmt_sel = select(TokenTransfer).where(TokenTransfer.block_number == block_number)
+    transfers = session.execute(stmt_sel).scalars().all()
+    
+    for t in transfers:
+        # Reverse the changes: add back to sender, subtract from receiver
+        update_token_balance(session, t.from_address, t.token_address, int(t.amount))
+        update_token_balance(session, t.to_address, t.token_address, -int(t.amount))
+
     # Rollback token transfers
     stmt_tt = delete(TokenTransfer).where(TokenTransfer.block_number == block_number)
     session.execute(stmt_tt)

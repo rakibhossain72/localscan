@@ -71,14 +71,17 @@ class Transaction(Base):
     to_address: Mapped[Optional[str]] = mapped_column(
         String(42), nullable=True, index=True
     )
-    value: Mapped[int] = mapped_column(BigInteger, nullable=False)  # wei
+    value: Mapped[str] = mapped_column(String(78), nullable=False)  # wei as string (max ~2^256)
     gas: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    gas_price: Mapped[int] = mapped_column(BigInteger, nullable=False)  # wei
+    gas_price: Mapped[str] = mapped_column(String(78), nullable=False)  # wei as string
     input: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     nonce: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True
     )  # 0 = fail, 1 = success, None = pending/old
+    contract_address: Mapped[Optional[str]] = mapped_column(
+        String(42), nullable=True, index=True
+    )
 
     block: Mapped["Block"] = relationship(back_populates="transactions")
 
@@ -94,9 +97,9 @@ class Address(Base):
     address: Mapped[str] = mapped_column(String(42), primary_key=True)
     first_seen_block: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     is_contract: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    balance_cached: Mapped[Optional[int]] = mapped_column(
-        BigInteger, nullable=True
-    )  # wei
+    balance_cached: Mapped[Optional[str]] = mapped_column(
+        String(78), nullable=True
+    )  # wei as string
 
 
 class Contract(Base):
@@ -129,7 +132,7 @@ class Token(Base):
     name: Mapped[str] = mapped_column(String(128), nullable=True)
     symbol: Mapped[str] = mapped_column(String(32), nullable=True)
     decimals: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    total_supply: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    total_supply: Mapped[Optional[str]] = mapped_column(String(78), nullable=True)  # as string
 
 
 class TokenTransfer(Base):
@@ -146,11 +149,24 @@ class TokenTransfer(Base):
     token_address: Mapped[str] = mapped_column(String(42), nullable=False, index=True)
     from_address: Mapped[str] = mapped_column(String(42), nullable=False, index=True)
     to_address: Mapped[str] = mapped_column(String(42), nullable=False, index=True)
-    amount: Mapped[int] = mapped_column(
-        BigInteger, nullable=False
-    )  # raw amount (no decimals applied)
+    amount: Mapped[str] = mapped_column(
+        String(78), nullable=False
+    )  # raw amount as string (no decimals applied)
 
     __table_args__ = (
         Index("ix_token_transfers_token_from", "token_address", "from_address"),
         Index("ix_token_transfers_token_to", "token_address", "to_address"),
+    )
+
+
+class TokenBalance(Base):
+    __tablename__ = "token_balances"
+
+    address: Mapped[str] = mapped_column(String(42), primary_key=True)
+    token_address: Mapped[str] = mapped_column(String(42), primary_key=True)
+    balance: Mapped[str] = mapped_column(String(78), nullable=False, default="0")
+
+    __table_args__ = (
+        Index("ix_token_balances_address", "address"),
+        Index("ix_token_balances_token_address", "token_address"),
     )

@@ -67,7 +67,7 @@ def run_indexer():
                             session.commit()
                             break
 
-                    save_block(session, block_data)
+                    save_block(session, block_data, w3)
 
                     for i, tx in enumerate(block_data["transactions"]):
                         save_transaction(session, tx, block_number, i, w3)
