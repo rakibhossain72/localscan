@@ -15,9 +15,11 @@
                     <tr>
                         <th class="px-6 py-3 font-medium">Txn Hash</th>
                         <th class="px-6 py-3 font-medium">Block</th>
+                        <th class="px-6 py-3 font-medium">Time</th>
                         <th class="px-6 py-3 font-medium">From</th>
                         <th class="px-6 py-3 font-medium">To</th>
                         <th class="px-6 py-3 font-medium">Value</th>
+                        <th class="px-6 py-3 font-medium">Status</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -30,12 +32,24 @@
                             <a href="/block/{{ tx.block_number }}" class="text-blue-500 text-sm">#{{ tx.block_number }}</a>
                         </td>
                         <td class="px-6 py-4">
-                            <a href="/address/{{ tx.from_address }}" class="text-blue-500 text-sm truncate block w-32">{{ tx.from_address }}</a>
+                            <span class="text-slate-500 text-xs">{{ tx.block.timestamp | timeago }}</span>
                         </td>
                         <td class="px-6 py-4">
-                            <a href="/address/{{ tx.to_address }}" class="text-blue-500 text-sm truncate block w-32">{{ tx.to_address }}</a>
+                            <a href="/address/{{ tx.from_address }}" class="text-blue-500 text-sm truncate block w-32" title="{{ tx.from_address }}">{{ tx.from_address[:10] }}...{{ tx.from_address[-8:] }}</a>
+                        </td>
+                        <td class="px-6 py-4">
+                            <a href="/address/{{ tx.to_address }}" class="text-blue-500 text-sm truncate block w-32" title="{{ tx.to_address }}">{{ tx.to_address[:10] }}...{{ tx.to_address[-8:] if tx.to_address else '' }}</a>
                         </td>
                         <td class="px-6 py-4 font-semibold text-sm">{{ tx.value | from_wei }} ETH</td>
+                        <td class="px-6 py-4">
+                            {% if tx.status == 1 %}
+                            <span class="text-green-600 text-xs font-bold uppercase tracking-tighter">Success</span>
+                            {% elif tx.status == 0 %}
+                            <span class="text-red-600 text-xs font-bold uppercase tracking-tighter">Fail</span>
+                            {% else %}
+                            <span class="text-slate-400 text-xs font-bold uppercase tracking-tighter italic">Pending</span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

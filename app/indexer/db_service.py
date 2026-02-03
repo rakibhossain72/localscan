@@ -36,6 +36,8 @@ def save_transaction(session, tx, block_number, tx_index, w3):
         input=tx["input"].hex(),
         nonce=tx["nonce"],
         status=receipt.status,
+        gas_used=receipt.gasUsed,
+        custom_error=get_revert_reason(w3, tx.hash.hex()) if receipt.status == 0 else None,
         contract_address=to_checksum_address(tx.get("contractAddress")) if tx.get("contractAddress") else None,
     )
     session.merge(new_tx)
@@ -75,7 +77,6 @@ def save_transaction(session, tx, block_number, tx_index, w3):
     TRANSFER_TOPIC = "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
     
     for log in receipt.logs:
-        print( log.topics[0].hex(),  TRANSFER_TOPIC, len(log.topics) == 3)
         # Make sure topics is at least length 1 before accessing index 0
         if log.topics and log.topics[0].hex() == TRANSFER_TOPIC and len(log.topics) == 3:
             # It looks like a Transfer event (indexed from, indexed to, uint value)
@@ -215,6 +216,9 @@ def sync_on_chain_token_balance(session, w3, address, token_address, block_num):
                 balance=str(balance)
             )
             session.add(new_obj)
+        
+        # Update holders count
+        update_token_holders_count(session, token_address)
     except Exception as e:
         print(f"Error syncing on-chain token balance for {address} on token {token_address}: {e}")
 
@@ -231,6 +235,23 @@ def update_token_balance(session, address, token_address, amount_change):
             balance=str(max(0, amount_change))
         )
         session.add(new_obj)
+    
+    # Update holders count
+    update_token_holders_count(session, token_address)
+
+
+def update_token_holders_count(session, token_address):
+    # Count addresses with non-zero balance
+    from sqlalchemy import func
+    stmt = select(func.count(TokenBalance.address)).where(
+        TokenBalance.token_address == token_address,
+        TokenBalance.balance != "0"
+    )
+    count = session.execute(stmt).scalar()
+    
+    token = session.get(Token, token_address)
+    if token:
+        token.holders_count = count
 
 
 def rollback_block(session, block_number):
@@ -254,3 +275,27 @@ def rollback_block(session, block_number):
     session.execute(stmt_block)
     
     session.commit()
+
+def get_revert_reason(w3, tx_hash):
+    try:
+        tx = w3.eth.get_transaction(tx_hash)
+        # We try to call it to get the revert reason
+        # Note: Some RPCs might not support this or might require different parameters
+        try:
+            w3.eth.call({
+                "to": tx["to"],
+                "from": tx["from"],
+                "value": tx["value"],
+                "data": tx["input"],
+                "gas": tx["gas"],
+                "gasPrice": tx["gasPrice"],
+            }, tx.blockNumber)
+        except Exception as e:
+            error_msg = str(e)
+            # Clean up common web3 error formats
+            if "execution reverted:" in error_msg:
+                return error_msg.split("execution reverted:")[-1].strip()
+            return error_msg
+    except Exception as e:
+        print(f"Error fetching revert reason for {tx_hash}: {e}")
+    return None

@@ -53,7 +53,7 @@
                             </div>
                             <div>
                                 <a href="/block/{{ block.number }}" class="text-blue-600 font-medium hover:text-blue-700">#{{ block.number }}</a>
-                                <p class="text-xs text-slate-500 mt-1">{{ block.timestamp }}</p>
+                                <p class="text-xs text-slate-500 mt-1 uppercase tracking-tight font-medium">{{ block.timestamp | timeago }}</p>
                             </div>
                         </div>
                         <div class="text-right">
@@ -80,7 +80,10 @@
                             <div class="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500 font-bold text-xs">TX</div>
                             <div class="min-w-0">
                                 <a href="/tx/0x{{ tx.hash }}" class="text-blue-600 font-medium hover:text-blue-700 block truncate w-32 md:w-48">0x{{ tx.hash }}</a>
-                                <p class="text-xs text-slate-500 mt-1">From: <a href="/address/{{ tx.from_address }}" class="text-blue-500">{{ tx.from_address[:10] }}...</a></p>
+                                <p class="text-xs text-slate-500 mt-1 flex items-center">
+                                    <span class="mr-2 uppercase tracking-tight font-medium">{{ tx.block.timestamp | timeago }}</span>
+                                    <span>From: <a href="/address/{{ tx.from_address }}" class="text-blue-500">{{ tx.from_address[:8] }}...</a></span>
+                                </p>
                             </div>
                         </div>
                         <div class="text-right">

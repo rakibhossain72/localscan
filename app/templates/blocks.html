@@ -26,7 +26,7 @@
                         <td class="px-6 py-4">
                             <a href="/block/{{ block.number }}" class="text-blue-600 font-medium hover:text-blue-700">#{{ block.number }}</a>
                         </td>
-                        <td class="px-6 py-4 text-sm text-slate-500">{{ block.timestamp }}</td>
+                        <td class="px-6 py-4 text-sm text-slate-500">{{ block.timestamp | timeago }}</td>
                         <td class="px-6 py-4 text-sm text-slate-900">{{ block.tx_count }}</td>
                         <td class="px-6 py-4">
                             <a href="/address/{{ block.miner }}" class="text-blue-500 text-sm truncate block w-32">{{ block.miner }}</a>

@@ -43,8 +43,23 @@ def format_token_balance(value, decimals=18):
     except:
         return value
 
+def timeago_filter(dt):
+    from datetime import datetime, timezone
+    if not dt: return ""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    diff = now - dt
+    seconds = int(diff.total_seconds())
+    if seconds < 0: return "just now"
+    if seconds < 60: return f"{seconds}s ago"
+    if seconds < 3600: return f"{seconds // 60}m ago"
+    if seconds < 86400: return f"{seconds // 3600}h ago"
+    return f"{seconds // 86400}d ago"
+
 templates.env.filters["from_wei"] = from_wei_filter
 templates.env.filters["format_token"] = format_token_balance
+templates.env.filters["timeago"] = timeago_filter
 
 @router.get("/blocks")
 async def list_blocks(request: Request, db: Session = Depends(get_db)):
@@ -54,7 +69,12 @@ async def list_blocks(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/txs")
 async def list_transactions(request: Request, db: Session = Depends(get_db)):
-    stmt = select(Transaction).order_by(desc(Transaction.block_number), desc(Transaction.tx_index)).limit(50)
+    stmt = (
+        select(Transaction)
+        .options(selectinload(Transaction.block))
+        .order_by(desc(Transaction.block_number), desc(Transaction.tx_index))
+        .limit(50)
+    )
     txs = db.execute(stmt).scalars().all()
     return templates.TemplateResponse("txs.html", {"request": request, "transactions": txs})
 
@@ -65,7 +85,12 @@ async def index(request: Request, db: Session = Depends(get_db)):
     blocks = db.execute(blocks_stmt).scalars().all()
     
     # Fetch latest 10 transactions
-    txs_stmt = select(Transaction).order_by(desc(Transaction.block_number), desc(Transaction.tx_index)).limit(10)
+    txs_stmt = (
+        select(Transaction)
+        .options(selectinload(Transaction.block))
+        .order_by(desc(Transaction.block_number), desc(Transaction.tx_index))
+        .limit(10)
+    )
     txs = db.execute(txs_stmt).scalars().all()
     
     return templates.TemplateResponse("index.html", {
@@ -141,7 +166,11 @@ async def transaction_detail(request: Request, tx_hash: str, db: Session = Depen
     if query_hash.startswith("0x"):
         query_hash = query_hash[2:]
         
-    stmt = select(Transaction).where(Transaction.hash == query_hash)
+    stmt = (
+        select(Transaction)
+        .options(selectinload(Transaction.block))
+        .where(Transaction.hash == query_hash)
+    )
     tx = db.execute(stmt).scalar_one_or_none()
     
     if not tx:
@@ -318,7 +347,7 @@ async def token_detail(request: Request, address: str, db: Session = Depends(get
         select(TokenBalance)
         .where(TokenBalance.token_address == checksum_addr)
         .order_by(desc(cast(TokenBalance.balance, Numeric)))
-        .limit(50)
+        .limit(5)
     )
     holders_objs = db.execute(holders_stmt).scalars().all()
     

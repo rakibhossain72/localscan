@@ -79,6 +79,8 @@ class Transaction(Base):
     status: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True
     )  # 0 = fail, 1 = success, None = pending/old
+    gas_used: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    custom_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     contract_address: Mapped[Optional[str]] = mapped_column(
         String(42), nullable=True, index=True
     )
@@ -140,6 +142,7 @@ class Token(Base):
     symbol: Mapped[str] = mapped_column(String(32), nullable=True)
     decimals: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     total_supply: Mapped[Optional[str]] = mapped_column(String(78), nullable=True)  # as string
+    holders_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     __table_args__ = (
         CheckConstraint(

@@ -35,6 +35,11 @@
                     <div class="sm:col-span-2 text-sm text-slate-900 font-semibold">{{ token.total_supply | format_token(token.decimals) }} {{ token.symbol }}</div>
                 </div>
 
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 border-b border-slate-50 pb-4">
+                    <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Holders:</div>
+                    <div class="sm:col-span-2 text-sm text-slate-900">{{ token.holders_count }} addresses</div>
+                </div>
+
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Contract Address:</div>
                     <div class="sm:col-span-2 text-xs text-slate-900 font-mono break-all">{{ token.address }}</div>
