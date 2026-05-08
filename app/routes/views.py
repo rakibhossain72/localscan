@@ -14,12 +14,12 @@ getcontext().prec = 50
 from app.db.models import Block, Transaction, Address, Contract, Token, TokenBalance
 from app.dependencies import get_db
 from web3 import Web3
-from app.indexer.config import RPC_URL
+from app.indexer.config import HTTP_RPC_URL
 from app.indexer.parser import parse_block
 from app.indexer.db_service import save_block, save_transaction, upsert_address
 from hexbytes import HexBytes
 
-w3 = Web3(Web3.HTTPProvider(RPC_URL))
+w3 = Web3(Web3.HTTPProvider(HTTP_RPC_URL))
 
 router = APIRouter(tags=["views"])
 templates = Jinja2Templates(directory="app/templates")

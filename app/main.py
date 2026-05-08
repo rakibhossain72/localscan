@@ -23,3 +23,12 @@ app.include_router(addresses.router)
 @app.get("/")
 def read_root():
     return {"message": "LocalScan Indexer API is running"}
+
+
+if __name__=="__main__":
+    import uvicorn
+
+    uvicorn.run(
+        app,
+    )
+

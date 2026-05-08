@@ -186,17 +186,19 @@ def upsert_address(session, w3, addr, block_num, is_contract=False):
             address=addr,
             first_seen_block=block_num,
             is_contract=is_contract,
-            balance_cached=str(max(0, balance)) 
+            balance_cached=str(max(0, balance))
         )
         session.add(new_addr)
+        # Flush immediately so the identity map is populated — prevents
+        # UNIQUE violations when the same address appears multiple times
+        # within a single block (e.g. miner appearing in every tx).
+        session.flush()
         if is_contract:
             ensure_token(session, w3, addr)
     else:
-        # Update balance and potentially contract flag
         existing.balance_cached = str(max(0, balance))
         if is_contract and not existing.is_contract:
             existing.is_contract = True
-            # New contract identified, check if it's a token
             ensure_token(session, w3, addr)
 
 

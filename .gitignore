@@ -1,8 +1,38 @@
+# Python
 venv/
 *.pyc
-__pycache__/*
+*.pyo
+__pycache__/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Environment
 .env
+*.env.*
+
+# Database
 *.db
 *.sqlite3
-chain.json
+
+# Logs
 *.log
+
+# PyInstaller
+*.spec
+*.manifest
+
+# Project-specific
+chain.json
+chain_indexer.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
