@@ -121,13 +121,18 @@ class Contract(Base):
     )
     creator_tx: Mapped[str] = mapped_column(String(66), nullable=False)
     creation_block: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    bytecode_hash: Mapped[str] = mapped_column(
+    bytecode_hash: Mapped[Optional[str]] = mapped_column(
         String(66), nullable=True
     )  # keccak256 of runtime bytecode
 
-    # Optional fields you can add later
-    # verified_source: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    # abi_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Verification fields
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    source_code: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    abi_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    compiler_version: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    optimization_enabled: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    optimization_runs: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Token(Base):
