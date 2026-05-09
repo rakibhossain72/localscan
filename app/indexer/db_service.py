@@ -3,6 +3,17 @@ from sqlalchemy import delete, select
 from app.db.models import Block, Transaction, Address, Contract, Token, TokenTransfer, TokenBalance
 from app.indexer.abis import ERC20_ABI
 
+def _fetch_bytecode_hash(w3, address: str):
+    """Fetch deployed bytecode and return keccak256 hex hash, or None on failure."""
+    try:
+        code = w3.eth.get_code(address)
+        if code:
+            return w3.keccak(code).hex()
+    except Exception:
+        pass
+    return None
+
+
 def save_block(session, block_data, w3):
     # We use merge to handle "INSERT OR REPLACE" - upsert semantics
     new_block = Block(
@@ -60,14 +71,21 @@ def save_transaction(session, tx, block_number, tx_index, w3):
             c_addr = to_checksum_address(contract_address)
             upsert_address(session, w3, c_addr, block_number, is_contract=True)
 
+            bytecode_hash = _fetch_bytecode_hash(w3, c_addr)
+
             # Save Contract Details
-            new_contract = Contract(
-                address=c_addr,
-                creator_tx=tx.hash.hex(),
-                creation_block=block_number,
-                bytecode_hash=None
-            )
-            session.merge(new_contract)
+            existing_contract = session.get(Contract, c_addr)
+            if existing_contract:
+                if existing_contract.bytecode_hash is None and bytecode_hash is not None:
+                    existing_contract.bytecode_hash = bytecode_hash
+            else:
+                new_contract = Contract(
+                    address=c_addr,
+                    creator_tx=tx.hash.hex(),
+                    creation_block=block_number,
+                    bytecode_hash=bytecode_hash
+                )
+                session.merge(new_contract)
     
     # ------------------
     # ERC20 Log Parsing
