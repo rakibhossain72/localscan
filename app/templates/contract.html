@@ -1,0 +1,345 @@
+{% extends "base.html" %}
+
+{% block title %}Contract {{ address.address }} - LocalScan{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center space-x-2 text-sm text-slate-500">
+        <a href="/" class="hover:text-blue-600">Home</a>
+        <span>/</span>
+        <span class="text-slate-900 font-medium">Contract</span>
+    </div>
+
+    <!-- Header / Overview -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+            <h1 class="text-lg font-bold text-slate-900">Contract Details</h1>
+            <span class="bg-blue-50 text-blue-700 px-2 py-1 rounded text-[10px] uppercase font-bold border border-blue-100">Contract</span>
+        </div>
+
+        <div class="p-6 space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 border-b border-slate-50 pb-4">
+                <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Address:</div>
+                <div class="sm:col-span-2 text-sm text-slate-900 font-mono break-all">{{ address.address }}</div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 border-b border-slate-50 pb-4">
+                <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">ETH Balance:</div>
+                <div class="sm:col-span-2 text-sm text-slate-900 font-bold">{{ address.balance_cached | from_wei }} ETH</div>
+            </div>
+
+            {% if token %}
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 border-b border-slate-50 pb-4">
+                <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Token:</div>
+                <div class="sm:col-span-2 text-sm">
+                    <a href="/token/{{ address.address }}" class="inline-flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium">
+                        <span>{{ token.name }}</span>
+                        <span class="bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase">{{ token.symbol }}</span>
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if contract %}
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 border-b border-slate-50 pb-4">
+                <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Creator:</div>
+                <div class="sm:col-span-2 text-sm">
+                    {% if creator_address %}
+                    <a href="/address/{{ creator_address }}" class="text-blue-600 hover:text-blue-700 font-mono text-xs">{{ creator_address }}</a>
+                    {% else %}
+                    <span class="text-slate-400 text-xs">Unknown</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 border-b border-slate-50 pb-4">
+                <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Creator Tx:</div>
+                <div class="sm:col-span-2 text-sm">
+                    {% if contract.creator_tx %}
+                    <a href="/tx/{{ contract.creator_tx }}" class="text-blue-600 hover:text-blue-700 font-mono text-xs break-all">{{ contract.creator_tx }}</a>
+                    {% else %}
+                    <span class="text-slate-400 text-xs">Unknown</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Creation Block:</div>
+                <div class="sm:col-span-2 text-sm">
+                    {% if contract.creation_block %}
+                    <a href="/block/{{ contract.creation_block }}" class="text-blue-600 hover:text-blue-700">#{{ contract.creation_block }}</a>
+                    {% else %}
+                    <span class="text-slate-400 text-xs">Unknown</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="border-b border-slate-100 bg-slate-50/50 px-4">
+            <nav class="flex space-x-6" aria-label="Tabs">
+                <button
+                    onclick="switchTab('transactions')"
+                    id="tab-transactions"
+                    class="tab-btn active border-b-2 border-blue-600 py-4 px-1 text-sm font-bold text-blue-600 outline-none"
+                >
+                    Transactions
+                </button>
+                <button
+                    onclick="switchTab('contract')"
+                    id="tab-contract"
+                    class="tab-btn border-b-2 border-transparent py-4 px-1 text-sm font-medium text-slate-500 hover:text-slate-700 hover:border-slate-300 outline-none"
+                >
+                    Contract
+                </button>
+                {% if token %}
+                <button
+                    onclick="switchTab('token')"
+                    id="tab-token"
+                    class="tab-btn border-b-2 border-transparent py-4 px-1 text-sm font-medium text-slate-500 hover:text-slate-700 hover:border-slate-300 outline-none"
+                >
+                    Token
+                </button>
+                {% endif %}
+            </nav>
+        </div>
+
+        <div class="overflow-x-auto min-h-[300px]">
+
+            <!-- Transactions Tab -->
+            <div id="content-transactions" class="tab-content block">
+                {% if transactions %}
+                <table class="w-full text-left">
+                    <thead class="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs">
+                        <tr>
+                            <th class="px-6 py-3 font-medium">Txn Hash</th>
+                            <th class="px-6 py-3 font-medium">Block</th>
+                            <th class="px-6 py-3 font-medium">From/To</th>
+                            <th class="px-6 py-3 font-medium">Value</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for tx in transactions %}
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="px-6 py-4">
+                                <a href="/tx/0x{{ tx.hash }}" class="text-blue-600 font-medium hover:text-blue-700 block truncate w-32 md:w-48">0x{{ tx.hash }}</a>
+                            </td>
+                            <td class="px-6 py-4">
+                                <a href="/block/{{ tx.block_number }}" class="text-blue-500 text-sm">#{{ tx.block_number }}</a>
+                            </td>
+                            <td class="px-6 py-4">
+                                {% if tx.from_address == address.address %}
+                                <div class="flex items-center space-x-2">
+                                    <span class="bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded text-[10px] font-bold">OUT</span>
+                                    <a href="/address/{{ tx.to_address }}" class="text-blue-500 text-xs truncate block w-24">{% if tx.to_address %}{{ tx.to_address[:12] }}...{% else %}Contract Creation{% endif %}</a>
+                                </div>
+                                {% else %}
+                                <div class="flex items-center space-x-2">
+                                    <span class="bg-green-50 text-green-700 px-1.5 py-0.5 rounded text-[10px] font-bold">IN</span>
+                                    <a href="/address/{{ tx.from_address }}" class="text-blue-500 text-xs truncate block w-24">{{ tx.from_address[:12] }}...</a>
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 font-semibold text-sm">{{ tx.value | from_wei }} ETH</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="text-center py-20">
+                    <p class="text-slate-500 text-sm">No transactions found for this contract.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Contract Tab -->
+            <div id="content-contract" class="tab-content hidden">
+                <div class="p-6 space-y-6">
+
+                    {% if abi_error %}
+                    <div class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                        {{ abi_error }}
+                    </div>
+                    {% endif %}
+
+                    {% if contract and contract.abi_json %}
+                    <!-- ABI already saved — show caller -->
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-slate-700 uppercase tracking-wider">Read Contract</h3>
+                        <button onclick="showAbiForm()" class="text-xs text-blue-600 hover:underline">Update ABI</button>
+                    </div>
+
+                    <!-- ABI update form (hidden by default) -->
+                    <div id="abi-form-section" class="hidden">
+                        <form method="POST" action="/address/{{ address.address }}/abi" class="space-y-3">
+                            <textarea name="abi_json" rows="6"
+                                class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                placeholder='[{"type":"function","name":"..."}]'>{{ contract.abi_json }}</textarea>
+                            <div class="flex space-x-2">
+                                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Save ABI</button>
+                                <button type="button" onclick="hideAbiForm()" class="text-sm text-slate-500 hover:text-slate-700 px-4 py-2">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Function caller -->
+                    <div id="fn-list" class="space-y-3"></div>
+
+                    <script>
+                    const CONTRACT_ABI = {{ contract.abi_json | safe }};
+                    const CONTRACT_ADDR = "{{ address.address }}";
+
+                    function showAbiForm() { document.getElementById('abi-form-section').classList.remove('hidden'); }
+                    function hideAbiForm() { document.getElementById('abi-form-section').classList.add('hidden'); }
+
+                    function buildCaller() {
+                        const list = document.getElementById('fn-list');
+                        list.innerHTML = '';
+                        const fns = CONTRACT_ABI.filter(e => e.type === 'function' && ['view','pure'].includes(e.stateMutability));
+                        if (!fns.length) {
+                            list.innerHTML = '<p class="text-slate-400 text-sm">No read functions found in ABI.</p>';
+                            return;
+                        }
+                        fns.forEach((fn, idx) => {
+                            const card = document.createElement('div');
+                            card.className = 'border border-slate-200 rounded-lg overflow-hidden';
+                            const inputs = (fn.inputs || []).map((inp, i) => `
+                                <div class="flex flex-col space-y-1">
+                                    <label class="text-xs text-slate-500">${inp.name || 'arg'+i} <span class="text-slate-400">(${inp.type})</span></label>
+                                    <input data-idx="${i}" type="text" placeholder="${inp.type}"
+                                        class="border border-slate-200 rounded px-2 py-1 text-xs font-mono focus:ring-1 focus:ring-blue-400 outline-none" />
+                                </div>`).join('');
+                            card.innerHTML = `
+                                <div class="px-4 py-3 bg-slate-50 flex items-center justify-between cursor-pointer" onclick="toggleFn(${idx})">
+                                    <span class="text-sm font-mono font-medium text-slate-800">${fn.name}</span>
+                                    <svg id="chevron-${idx}" class="w-4 h-4 text-slate-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                    </svg>
+                                </div>
+                                <div id="fn-body-${idx}" class="hidden px-4 py-4 space-y-3 border-t border-slate-100">
+                                    ${inputs ? `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${inputs}</div>` : ''}
+                                    <button onclick="callFn(${idx})" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-1.5 rounded transition-colors">Query</button>
+                                    <div id="result-${idx}" class="hidden mt-2 p-3 bg-slate-900 text-green-400 rounded font-mono text-xs whitespace-pre-wrap break-all"></div>
+                                </div>`;
+                            list.appendChild(card);
+                        });
+                    }
+
+                    function toggleFn(idx) {
+                        const body = document.getElementById('fn-body-' + idx);
+                        const chev = document.getElementById('chevron-' + idx);
+                        body.classList.toggle('hidden');
+                        chev.style.transform = body.classList.contains('hidden') ? '' : 'rotate(180deg)';
+                    }
+
+                    async function callFn(idx) {
+                        const fns = CONTRACT_ABI.filter(e => e.type === 'function' && ['view','pure'].includes(e.stateMutability));
+                        const fn = fns[idx];
+                        const body = document.getElementById('fn-body-' + idx);
+                        const args = [...body.querySelectorAll('input[data-idx]')].map(i => i.value.trim());
+                        const resultEl = document.getElementById('result-' + idx);
+                        resultEl.classList.remove('hidden');
+                        resultEl.textContent = 'Loading...';
+                        try {
+                            const resp = await fetch(`/api/contract/${CONTRACT_ADDR}/call`, {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({function: fn.name, args})
+                            });
+                            const data = await resp.json();
+                            if (data.success) {
+                                resultEl.className = 'mt-2 p-3 bg-slate-900 text-green-400 rounded font-mono text-xs whitespace-pre-wrap break-all';
+                                resultEl.textContent = JSON.stringify(data.result, null, 2);
+                            } else {
+                                resultEl.className = 'mt-2 p-3 bg-slate-900 text-red-400 rounded font-mono text-xs whitespace-pre-wrap break-all';
+                                resultEl.textContent = 'Error: ' + data.error;
+                            }
+                        } catch(e) {
+                            resultEl.className = 'mt-2 p-3 bg-slate-900 text-red-400 rounded font-mono text-xs whitespace-pre-wrap break-all';
+                            resultEl.textContent = 'Request failed: ' + e.message;
+                        }
+                    }
+
+                    buildCaller();
+                    </script>
+
+                    {% else %}
+                    <!-- No ABI yet — show submission form -->
+                    <div>
+                        <h3 class="text-sm font-semibold text-slate-700 uppercase tracking-wider mb-1">Add Contract ABI</h3>
+                        <p class="text-slate-400 text-xs mb-4">Paste the contract ABI JSON to enable read-only function calls.</p>
+                        <form method="POST" action="/address/{{ address.address }}/abi" class="space-y-4">
+                            <textarea name="abi_json" rows="10" required
+                                class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                placeholder='[{"type":"function","name":"balanceOf","inputs":[{"name":"owner","type":"address"}],"outputs":[{"type":"uint256"}],"stateMutability":"view"}]'></textarea>
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-colors">
+                                Save &amp; Validate ABI
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+
+                </div>
+            </div>
+
+            <!-- Token Tab (only rendered if contract is also a token) -->
+            {% if token %}
+            <div id="content-token" class="tab-content hidden">
+                <div class="p-6">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 border-b border-slate-50 pb-4">
+                                <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Token Name:</div>
+                                <div class="sm:col-span-2 text-sm text-slate-900 font-bold">{{ token.name }}</div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 border-b border-slate-50 pb-4">
+                                <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Symbol:</div>
+                                <div class="sm:col-span-2 text-sm text-slate-900">{{ token.symbol }}</div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 border-b border-slate-50 pb-4">
+                                <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Decimals:</div>
+                                <div class="sm:col-span-2 text-sm text-slate-900">{{ token.decimals }}</div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 border-b border-slate-50 pb-4">
+                                <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Supply:</div>
+                                <div class="sm:col-span-2 text-sm text-slate-900 font-semibold">{{ token.total_supply | format_token(token.decimals) }} {{ token.symbol }}</div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Holders:</div>
+                                <div class="sm:col-span-2 text-sm text-slate-900">{{ token.holders_count }} addresses</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+
+<script>
+function switchTab(tab) {
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.replace('block', 'hidden'));
+    document.getElementById('content-' + tab).classList.replace('hidden', 'block');
+
+    document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('active', 'border-blue-600', 'text-blue-600', 'font-bold');
+        b.classList.add('border-transparent', 'text-slate-500', 'font-medium');
+    });
+
+    const activeBtn = document.getElementById('tab-' + tab);
+    activeBtn.classList.add('active', 'border-blue-600', 'text-blue-600', 'font-bold');
+    activeBtn.classList.remove('border-transparent', 'text-slate-500', 'font-medium');
+}
+
+// Auto-open tab from URL param
+(function() {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    if (tab) switchTab(tab);
+})();
+</script>
+{% endblock %}

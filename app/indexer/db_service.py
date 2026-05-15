@@ -35,6 +35,7 @@ def save_block(session, block_data, w3):
 def save_transaction(session, tx, block_number, tx_index, w3):
     receipt = w3.eth.get_transaction_receipt(tx.hash)
     
+    receipt_contract_address = receipt.get("contractAddress")
     new_tx = Transaction(
         hash=tx.hash.hex(),
         block_number=block_number,
@@ -49,7 +50,7 @@ def save_transaction(session, tx, block_number, tx_index, w3):
         status=receipt.status,
         gas_used=receipt.gasUsed,
         custom_error=get_revert_reason(w3, tx.hash.hex()) if receipt.status == 0 else None,
-        contract_address=to_checksum_address(tx.get("contractAddress")) if tx.get("contractAddress") else None,
+        contract_address=to_checksum_address(receipt_contract_address) if receipt_contract_address else None,
     )
     session.merge(new_tx)
 
@@ -142,39 +143,48 @@ def save_transaction(session, tx, block_number, tx_index, w3):
 
 
 def ensure_token(session, w3, token_address, force_update=False):
-    # Check if token exists, if not, fetch metadata
+    # Always check the session identity map first to avoid duplicate inserts
+    # within the same flush cycle (e.g. multiple transfers for the same token in one block)
     token = session.get(Token, token_address)
-    if not token or force_update:
-        # Fetch from RPC
-        try:
-            contract = w3.eth.contract(address=token_address, abi=ERC20_ABI)
-            # Some tokens might fail on these calls (e.g. non-standard ERC20)
-            # Use try-except blocks or fallback
-            try:
-                name = contract.functions.name().call()
-            except:
-                name = "Unknown"
-            
-            try:
-                symbol = contract.functions.symbol().call()
-            except:
-                symbol = "UNK"
-                
-            try:
-                decimals = contract.functions.decimals().call()
-            except:
-                decimals = 18
-            
-            total_supply_val = None
-            try:
-                total_supply_val = contract.functions.totalSupply().call()
-            except:
-                pass
-                
-            # If we can't get any standard ERC20 info, it's likely not a token
-            if name == "Unknown" and symbol == "UNK" and total_supply_val is None:
-                return
 
+    if token and not force_update:
+        return
+
+    # Fetch metadata from RPC
+    try:
+        contract = w3.eth.contract(address=token_address, abi=ERC20_ABI)
+        try:
+            name = contract.functions.name().call()
+        except:
+            name = "Unknown"
+
+        try:
+            symbol = contract.functions.symbol().call()
+        except:
+            symbol = "UNK"
+
+        try:
+            decimals = contract.functions.decimals().call()
+        except:
+            decimals = 18
+
+        total_supply_val = None
+        try:
+            total_supply_val = contract.functions.totalSupply().call()
+        except:
+            pass
+
+        # If we can't get any standard ERC20 info, it's likely not a token
+        if name == "Unknown" and symbol == "UNK" and total_supply_val is None:
+            return
+
+        if token:
+            # Update existing row in-place
+            token.name = name
+            token.symbol = symbol
+            token.decimals = decimals
+            token.total_supply = str(total_supply_val or 0)
+        else:
             new_token = Token(
                 address=token_address,
                 name=name,
@@ -182,11 +192,12 @@ def ensure_token(session, w3, token_address, force_update=False):
                 decimals=decimals,
                 total_supply=str(total_supply_val or 0)
             )
-            session.merge(new_token)
-            
-        except Exception as e:
-            # Silently ignore if it's not a contract or doesn't support basic calls
-            pass
+            session.add(new_token)
+            session.flush()  # populate identity map immediately
+
+    except Exception as e:
+        # Silently ignore if it's not a contract or doesn't support basic calls
+        pass
 
 
 def upsert_address(session, w3, addr, block_num, is_contract=False):

@@ -88,7 +88,7 @@
                         </div>
                         <div class="text-right">
                             <p class="text-sm font-semibold text-slate-900">{{ tx.value | from_wei }} ETH</p>
-                            <p class="text-xs text-slate-500 mt-1">To: <a href="/address/{{ tx.to_address }}" class="text-blue-500">{{ tx.to_address[:10] }}...</a></p>
+                            <p class="text-xs text-slate-500 mt-1">To: {% if tx.to_address %}<a href="/address/{{ tx.to_address }}" class="text-blue-500">{{ tx.to_address[:10] }}...</a>{% else %}<span class="text-slate-400 italic">Contract Creation</span>{% endif %}</p>
                         </div>
                     </div>
                 </div>
