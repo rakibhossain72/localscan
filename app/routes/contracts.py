@@ -1,6 +1,8 @@
+"""HTML view routes and API endpoints for contracts and addresses."""
 import json
 from decimal import Decimal
 
+from eth_utils import to_checksum_address
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import desc, select
@@ -10,7 +12,6 @@ from app.db.models import Address, Contract, Token, TokenBalance, TokenTransfer,
 from app.dependencies import get_db
 from app.indexer.db_service import upsert_address
 from app.routes.deps import templates, w3
-from eth_utils import to_checksum_address
 
 router = APIRouter(tags=["contracts"])
 
@@ -20,9 +21,12 @@ router = APIRouter(tags=["contracts"])
 # ---------------------------------------------------------------------------
 
 def _fmt_token_txs(tts, db):
+    """Format token transfer rows for template rendering."""
     rows = []
     for tt in tts:
-        info = db.execute(select(Token).where(Token.address == tt.token_address)).scalar_one_or_none()
+        info = db.execute(
+            select(Token).where(Token.address == tt.token_address)
+        ).scalar_one_or_none()
         decimals = info.decimals if info else 18
         human = Decimal(int(tt.amount)) / (Decimal(10) ** decimals)
         rows.append({
@@ -38,9 +42,12 @@ def _fmt_token_txs(tts, db):
 
 
 def _fmt_token_balances(balances, db):
+    """Format token balance rows for template rendering."""
     rows = []
     for tb in balances:
-        info = db.execute(select(Token).where(Token.address == tb.token_address)).scalar_one_or_none()
+        info = db.execute(
+            select(Token).where(Token.address == tb.token_address)
+        ).scalar_one_or_none()
         decimals = info.decimals if info else 18
         human = Decimal(int(tb.balance)) / (Decimal(10) ** decimals)
         rows.append({
@@ -54,34 +61,48 @@ def _fmt_token_balances(balances, db):
 
 
 async def _contract_context(request, checksum_addr, db, abi_error=None):
-    """Build the full template context for contract.html."""
-    addr_obj = db.execute(select(Address).where(Address.address == checksum_addr)).scalar_one_or_none()
+    """Build the full template context dict for contract.html."""
+    addr_obj = db.execute(
+        select(Address).where(Address.address == checksum_addr)
+    ).scalar_one_or_none()
     contract_row = db.get(Contract, checksum_addr)
-    token_row = db.execute(select(Token).where(Token.address == checksum_addr)).scalar_one_or_none()
+    token_row = db.execute(
+        select(Token).where(Token.address == checksum_addr)
+    ).scalar_one_or_none()
 
     creator_address = None
     if contract_row and contract_row.creator_tx:
         creator_tx = db.execute(
-            select(Transaction).where(Transaction.hash == contract_row.creator_tx.lstrip("0x"))
+            select(Transaction).where(
+                Transaction.hash == contract_row.creator_tx.lstrip("0x")
+            )
         ).scalar_one_or_none()
         if creator_tx:
             creator_address = creator_tx.from_address
 
     txs = db.execute(
         select(Transaction)
-        .where((Transaction.from_address == checksum_addr) | (Transaction.to_address == checksum_addr))
+        .where(
+            (Transaction.from_address == checksum_addr)
+            | (Transaction.to_address == checksum_addr)
+        )
         .order_by(desc(Transaction.block_number), desc(Transaction.tx_index))
         .limit(20)
     ).scalars().all()
 
     tts = db.execute(
         select(TokenTransfer)
-        .where((TokenTransfer.from_address == checksum_addr) | (TokenTransfer.to_address == checksum_addr))
+        .where(
+            (TokenTransfer.from_address == checksum_addr)
+            | (TokenTransfer.to_address == checksum_addr)
+        )
         .order_by(desc(TokenTransfer.block_number), desc(TokenTransfer.id))
         .limit(20)
     ).scalars().all()
 
-    balances = db.execute(select(TokenBalance).where(TokenBalance.address == checksum_addr)).scalars().all()
+    balances = db.execute(
+        select(TokenBalance).where(TokenBalance.address == checksum_addr)
+    ).scalars().all()
 
     return {
         "request": request,
@@ -102,54 +123,73 @@ async def _contract_context(request, checksum_addr, db, abi_error=None):
 
 @router.get("/address/{address}")
 async def address_detail(request: Request, address: str, db: Session = Depends(get_db)):
+    """Render the address or contract detail page."""
     try:
         checksum_addr = to_checksum_address(address)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid address format")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid address format") from exc
 
-    addr_obj = db.execute(select(Address).where(Address.address == checksum_addr)).scalar_one_or_none()
+    addr_obj = db.execute(
+        select(Address).where(Address.address == checksum_addr)
+    ).scalar_one_or_none()
 
     if not addr_obj:
         try:
             code = w3.eth.get_code(checksum_addr)
             upsert_address(db, w3, checksum_addr, w3.eth.block_number, is_contract=len(code) > 0)
             db.commit()
-            addr_obj = db.execute(select(Address).where(Address.address == checksum_addr)).scalar_one_or_none()
-        except Exception as e:
-            print(f"Error fetching address {checksum_addr} from chain: {e}")
+            addr_obj = db.execute(
+                select(Address).where(Address.address == checksum_addr)
+            ).scalar_one_or_none()
+        except Exception as exc:  # noqa: BLE001
+            print(f"Error fetching address {checksum_addr} from chain: {exc}")
 
     if not addr_obj:
         has_tx = db.execute(
             select(Transaction)
-            .where((Transaction.from_address == checksum_addr) | (Transaction.to_address == checksum_addr))
+            .where(
+                (Transaction.from_address == checksum_addr)
+                | (Transaction.to_address == checksum_addr)
+            )
             .limit(1)
         ).scalar_one_or_none()
         if not has_tx:
             raise HTTPException(status_code=404, detail="Address not found")
         addr_obj = type("obj", (), {
-            "address": checksum_addr, "is_contract": False,
-            "balance_cached": 0, "first_seen_block": 0,
+            "address": checksum_addr,
+            "is_contract": False,
+            "balance_cached": 0,
+            "first_seen_block": 0,
         })()
 
     if addr_obj.is_contract:
-        return templates.TemplateResponse("contract.html", await _contract_context(request, checksum_addr, db))
+        return templates.TemplateResponse(
+            "contract.html", await _contract_context(request, checksum_addr, db)
+        )
 
-    # EOA — build address page context
     txs = db.execute(
         select(Transaction)
-        .where((Transaction.from_address == checksum_addr) | (Transaction.to_address == checksum_addr))
+        .where(
+            (Transaction.from_address == checksum_addr)
+            | (Transaction.to_address == checksum_addr)
+        )
         .order_by(desc(Transaction.block_number), desc(Transaction.tx_index))
         .limit(20)
     ).scalars().all()
 
     tts = db.execute(
         select(TokenTransfer)
-        .where((TokenTransfer.from_address == checksum_addr) | (TokenTransfer.to_address == checksum_addr))
+        .where(
+            (TokenTransfer.from_address == checksum_addr)
+            | (TokenTransfer.to_address == checksum_addr)
+        )
         .order_by(desc(TokenTransfer.block_number), desc(TokenTransfer.id))
         .limit(20)
     ).scalars().all()
 
-    balances = db.execute(select(TokenBalance).where(TokenBalance.address == checksum_addr)).scalars().all()
+    balances = db.execute(
+        select(TokenBalance).where(TokenBalance.address == checksum_addr)
+    ).scalars().all()
 
     return templates.TemplateResponse("address.html", {
         "request": request,
@@ -171,10 +211,11 @@ async def submit_abi(
     abi_json: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    """Accept a user-submitted ABI, validate it, and persist it."""
     try:
         checksum_addr = to_checksum_address(address)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid address format")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid address format") from exc
 
     contract = db.get(Contract, checksum_addr)
     if not contract:
@@ -184,31 +225,38 @@ async def submit_abi(
         abi = json.loads(abi_json)
         if not isinstance(abi, list):
             raise ValueError("ABI must be a JSON array")
-    except Exception as exc:
-        ctx = await _contract_context(request, checksum_addr, db, abi_error=f"Invalid ABI JSON: {exc}")
+    except Exception as exc:  # noqa: BLE001
+        ctx = await _contract_context(
+            request, checksum_addr, db, abi_error=f"Invalid ABI JSON: {exc}"
+        )
         return templates.TemplateResponse("contract.html", ctx)
 
     try:
         w3_contract = w3.eth.contract(address=checksum_addr, abi=abi)
-    except Exception as exc:
-        ctx = await _contract_context(request, checksum_addr, db, abi_error=f"ABI rejected by web3: {exc}")
+    except Exception as exc:  # noqa: BLE001
+        ctx = await _contract_context(
+            request, checksum_addr, db, abi_error=f"ABI rejected by web3: {exc}"
+        )
         return templates.TemplateResponse("contract.html", ctx)
 
-    # Probe up to 3 no-arg view functions to confirm ABI matches on-chain contract
-    view_fns = [e for e in abi if e.get("type") == "function"
-                and e.get("stateMutability") in ("view", "pure")
-                and not e.get("inputs")]
+    view_fns = [
+        e for e in abi
+        if e.get("type") == "function"
+        and e.get("stateMutability") in ("view", "pure")
+        and not e.get("inputs")
+    ]
     errors = []
     for fn in view_fns[:3]:
         try:
             getattr(w3_contract.functions, fn["name"])().call()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             errors.append(str(exc))
 
     if view_fns and len(errors) == len(view_fns[:3]):
         ctx = await _contract_context(
             request, checksum_addr, db,
-            abi_error="ABI functions could not be called on-chain. Make sure the ABI matches this contract.",
+            abi_error="ABI functions could not be called on-chain. "
+                      "Make sure the ABI matches this contract.",
         )
         return templates.TemplateResponse("contract.html", ctx)
 
@@ -223,10 +271,11 @@ async def submit_abi(
 
 @router.post("/api/contract/{address}/call")
 async def contract_call(request: Request, address: str, db: Session = Depends(get_db)):
+    """Execute a read-only contract function call and return the result."""
     try:
         checksum_addr = to_checksum_address(address)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid address format")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid address format") from exc
 
     body = await request.json()
     fn_name: str = body.get("function")
@@ -245,5 +294,5 @@ async def contract_call(request: Request, address: str, db: Session = Depends(ge
         elif isinstance(result, (list, tuple)):
             result = [r.hex() if isinstance(r, bytes) else r for r in result]
         return {"success": True, "result": result}
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return {"success": False, "error": str(exc)}

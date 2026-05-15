@@ -1,5 +1,7 @@
+"""HTML view routes for tokens."""
 from decimal import Decimal
 
+from eth_utils import to_checksum_address
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import cast, desc, Numeric, select
 from sqlalchemy.orm import Session
@@ -7,21 +9,24 @@ from sqlalchemy.orm import Session
 from app.db.models import Token, TokenBalance, TokenTransfer
 from app.dependencies import get_db
 from app.routes.deps import templates
-from eth_utils import to_checksum_address
 
 router = APIRouter(tags=["tokens"])
 
 
 @router.get("/token/{address}")
 async def token_detail(request: Request, address: str, db: Session = Depends(get_db)):
+    """Render the token detail page."""
     try:
         checksum_addr = to_checksum_address(address)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid address format")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid address format") from exc
 
-    token = db.execute(select(Token).where(Token.address == checksum_addr)).scalar_one_or_none()
+    token = db.execute(
+        select(Token).where(Token.address == checksum_addr)
+    ).scalar_one_or_none()
+
     if not token:
-        from app.routes.contracts import address_detail
+        from app.routes.contracts import address_detail  # noqa: PLC0415
         return await address_detail(request, address, db)
 
     holders_objs = db.execute(
@@ -40,7 +45,8 @@ async def token_detail(request: Request, address: str, db: Session = Depends(get
 
     def _human(raw):
         d = Decimal(int(raw))
-        return format((d / (Decimal(10) ** token.decimals) if token.decimals else d).normalize(), "f")
+        divisor = Decimal(10) ** token.decimals if token.decimals else Decimal(1)
+        return format((d / divisor).normalize(), "f")
 
     formatted_holders = [
         {"address": h.address, "balance": h.balance, "formatted_balance": _human(h.balance)}

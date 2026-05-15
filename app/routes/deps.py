@@ -2,10 +2,11 @@
 Shared dependencies: Web3 instance, Jinja2 templates, and template filters.
 Import `w3` and `templates` from here in every route module.
 """
+import pathlib
+from datetime import datetime, timezone
 from decimal import Decimal, getcontext
 
 from fastapi.templating import Jinja2Templates
-from web3 import Web3
 
 import app.indexer.config as _cfg
 
@@ -13,7 +14,6 @@ getcontext().prec = 50
 
 w3 = _cfg.make_w3(_cfg.RPC_URL)
 
-import pathlib
 _HERE = pathlib.Path(__file__).parent.parent  # points to app/
 templates = Jinja2Templates(directory=str(_HERE / "templates"))
 
@@ -23,28 +23,29 @@ templates = Jinja2Templates(directory=str(_HERE / "templates"))
 # ---------------------------------------------------------------------------
 
 def from_wei_filter(value):
+    """Convert a wei integer to a human-readable ether string."""
     if value is None:
         return "0"
     try:
         human = Decimal(int(value)) / (Decimal(10) ** 18)
         return format(human.normalize(), "f")
-    except Exception:
+    except (ValueError, TypeError):
         return value
 
 
 def format_token_balance(value, decimals=18):
+    """Convert a raw token amount to a human-readable string."""
     if value is None:
         return "0"
     try:
         human = Decimal(int(value)) / (Decimal(10) ** decimals)
         return format(human.normalize(), "f")
-    except Exception:
+    except (ValueError, TypeError):
         return value
 
 
 def timeago_filter(dt):
-    from datetime import datetime, timezone
-
+    """Return a human-readable relative time string."""
     if not dt:
         return ""
     if dt.tzinfo is None:

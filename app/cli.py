@@ -1,3 +1,4 @@
+"""CLI entry point for LocalScan."""
 import argparse
 import os
 import pathlib
@@ -5,6 +6,7 @@ import uvicorn
 
 
 def main():
+    """Parse CLI arguments, patch config, and start the uvicorn server."""
     parser = argparse.ArgumentParser(description="LocalScan — EVM blockchain explorer")
     parser.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8000, help="Bind port (default: 8000)")

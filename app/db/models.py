@@ -1,3 +1,4 @@
+"""SQLAlchemy ORM models."""
 from datetime import datetime
 from typing import Optional
 
@@ -17,22 +18,22 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
-    pass
+    """Declarative base for all models."""
 
 
 class ChainState(Base):
+    """Tracks the last indexed block per chain."""
+
     __tablename__ = "chain_state"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     chain_id: Mapped[int] = mapped_column(nullable=False, unique=True)
     last_block_number: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    last_block_hash: Mapped[str] = mapped_column(
-        String(66), nullable=False
-    )  # 0x + 64 chars
+    last_block_hash: Mapped[str] = mapped_column(String(66), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
+        server_default=func.now(),  # pylint: disable=not-callable
+        onupdate=func.now(),  # pylint: disable=not-callable
         nullable=False,
     )
 
@@ -43,6 +44,8 @@ class ChainState(Base):
 
 
 class Block(Base):
+    """Indexed block."""
+
     __tablename__ = "blocks"
 
     number: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -60,6 +63,8 @@ class Block(Base):
 
 
 class Transaction(Base):
+    """Indexed transaction."""
+
     __tablename__ = "transactions"
 
     hash: Mapped[str] = mapped_column(String(66), primary_key=True)
@@ -68,22 +73,16 @@ class Transaction(Base):
     )
     tx_index: Mapped[int] = mapped_column(Integer, nullable=False)
     from_address: Mapped[str] = mapped_column(String(42), nullable=False, index=True)
-    to_address: Mapped[Optional[str]] = mapped_column(
-        String(42), nullable=True, index=True
-    )
-    value: Mapped[str] = mapped_column(String(78), nullable=False)  # wei as string (max ~2^256)
+    to_address: Mapped[Optional[str]] = mapped_column(String(42), nullable=True, index=True)
+    value: Mapped[str] = mapped_column(String(78), nullable=False)
     gas: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    gas_price: Mapped[str] = mapped_column(String(78), nullable=False)  # wei as string
+    gas_price: Mapped[str] = mapped_column(String(78), nullable=False)
     input: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     nonce: Mapped[int] = mapped_column(Integer, nullable=False)
-    status: Mapped[Optional[int]] = mapped_column(
-        Integer, nullable=True
-    )  # 0 = fail, 1 = success, None = pending/old
+    status: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     gas_used: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     custom_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    contract_address: Mapped[Optional[str]] = mapped_column(
-        String(42), nullable=True, index=True
-    )
+    contract_address: Mapped[Optional[str]] = mapped_column(String(42), nullable=True, index=True)
 
     block: Mapped["Block"] = relationship(back_populates="transactions")
 
@@ -94,24 +93,26 @@ class Transaction(Base):
 
 
 class Address(Base):
+    """Indexed address (EOA or contract)."""
+
     __tablename__ = "addresses"
 
     address: Mapped[str] = mapped_column(String(42), primary_key=True)
     first_seen_block: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     is_contract: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    balance_cached: Mapped[Optional[str]] = mapped_column(
-        String(78), nullable=True
-    )  # wei as string
+    balance_cached: Mapped[Optional[str]] = mapped_column(String(78), nullable=True)
 
     __table_args__ = (
         CheckConstraint(
             "balance_cached IS NULL OR (SUBSTR(balance_cached, 1, 1) <> '-')",
-            name="ck_address_balance_non_negative"
+            name="ck_address_balance_non_negative",
         ),
     )
 
 
 class Contract(Base):
+    """Contract metadata and optional verification data."""
+
     __tablename__ = "contracts"
 
     address: Mapped[str] = mapped_column(
@@ -121,11 +122,8 @@ class Contract(Base):
     )
     creator_tx: Mapped[str] = mapped_column(String(66), nullable=False)
     creation_block: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    bytecode_hash: Mapped[Optional[str]] = mapped_column(
-        String(66), nullable=True
-    )  # keccak256 of runtime bytecode
+    bytecode_hash: Mapped[Optional[str]] = mapped_column(String(66), nullable=True)
 
-    # Verification fields
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     source_code: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     abi_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -136,6 +134,8 @@ class Contract(Base):
 
 
 class Token(Base):
+    """ERC-20 token metadata."""
+
     __tablename__ = "tokens"
 
     address: Mapped[str] = mapped_column(
@@ -146,18 +146,20 @@ class Token(Base):
     name: Mapped[str] = mapped_column(String(128), nullable=True)
     symbol: Mapped[str] = mapped_column(String(32), nullable=True)
     decimals: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    total_supply: Mapped[Optional[str]] = mapped_column(String(78), nullable=True)  # as string
+    total_supply: Mapped[Optional[str]] = mapped_column(String(78), nullable=True)
     holders_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     __table_args__ = (
         CheckConstraint(
             "total_supply IS NULL OR (SUBSTR(total_supply, 1, 1) <> '-')",
-            name="ck_token_total_supply_non_negative"
+            name="ck_token_total_supply_non_negative",
         ),
     )
 
 
 class TokenTransfer(Base):
+    """ERC-20 transfer event."""
+
     __tablename__ = "token_transfers"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -171,9 +173,7 @@ class TokenTransfer(Base):
     token_address: Mapped[str] = mapped_column(String(42), nullable=False, index=True)
     from_address: Mapped[str] = mapped_column(String(42), nullable=False, index=True)
     to_address: Mapped[str] = mapped_column(String(42), nullable=False, index=True)
-    amount: Mapped[str] = mapped_column(
-        String(78), nullable=False
-    )  # raw amount as string (no decimals applied)
+    amount: Mapped[str] = mapped_column(String(78), nullable=False)
 
     __table_args__ = (
         Index("ix_token_transfers_token_from", "token_address", "from_address"),
@@ -182,6 +182,8 @@ class TokenTransfer(Base):
 
 
 class TokenBalance(Base):
+    """Cached on-chain token balance per address."""
+
     __tablename__ = "token_balances"
 
     address: Mapped[str] = mapped_column(String(42), primary_key=True)
@@ -193,6 +195,6 @@ class TokenBalance(Base):
         Index("ix_token_balances_token_address", "token_address"),
         CheckConstraint(
             "SUBSTR(balance, 1, 1) <> '-'",
-            name="ck_token_balance_non_negative"
+            name="ck_token_balance_non_negative",
         ),
     )

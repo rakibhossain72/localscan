@@ -1,7 +1,8 @@
+"""HTML view routes for blocks."""
 from typing import Union
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.models import Block
@@ -15,12 +16,20 @@ router = APIRouter(tags=["blocks"])
 
 @router.get("/blocks")
 async def list_blocks(request: Request, db: Session = Depends(get_db)):
-    blocks = db.execute(select(Block).order_by(desc(Block.number)).limit(50)).scalars().all()
+    """Render the blocks list page."""
+    blocks = db.execute(
+        select(Block).order_by(desc(Block.number)).limit(50)
+    ).scalars().all()
     return templates.TemplateResponse("blocks.html", {"request": request, "blocks": blocks})
 
 
 @router.get("/block/{identifier}")
-async def block_detail(request: Request, identifier: Union[int, str], db: Session = Depends(get_db)):
+async def block_detail(
+    request: Request,
+    identifier: Union[int, str],
+    db: Session = Depends(get_db),
+):
+    """Render the block detail page, fetching from chain if not yet indexed."""
     is_hash = False
     block_number = None
     query_hash = None
@@ -30,15 +39,13 @@ async def block_detail(request: Request, identifier: Union[int, str], db: Sessio
             block_number = int(identifier)
         else:
             is_hash = True
-            query_hash = identifier.lower().lstrip("0x") if identifier.lower().startswith("0x") else identifier.lower()
+            raw = identifier.lower()
+            query_hash = raw[2:] if raw.startswith("0x") else raw
     else:
         block_number = identifier
 
-    stmt = (
-        select(Block)
-        .options(selectinload(Block.transactions))
-        .where(Block.hash == query_hash if is_hash else Block.number == block_number)
-    )
+    condition = Block.hash == query_hash if is_hash else Block.number == block_number
+    stmt = select(Block).options(selectinload(Block.transactions)).where(condition)
     block = db.execute(stmt).scalar_one_or_none()
 
     if not block:
@@ -49,11 +56,13 @@ async def block_detail(request: Request, identifier: Union[int, str], db: Sessio
                 save_transaction(db, tx, data["number"], i, w3)
             db.commit()
             block = db.execute(
-                select(Block).options(selectinload(Block.transactions)).where(Block.number == data["number"])
+                select(Block)
+                .options(selectinload(Block.transactions))
+                .where(Block.number == data["number"])
             ).scalar_one_or_none()
-        except Exception as e:
-            print(f"Error fetching block {identifier} from chain: {e}")
-            raise HTTPException(status_code=404, detail="Block not found")
+        except Exception as exc:
+            print(f"Error fetching block {identifier} from chain: {exc}")
+            raise HTTPException(status_code=404, detail="Block not found") from exc
 
     if not block:
         raise HTTPException(status_code=404, detail="Block not found")

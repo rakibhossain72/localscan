@@ -1,0 +1,15 @@
+[MESSAGES CONTROL]
+disable=
+    too-few-public-methods,
+    import-outside-toplevel,
+    invalid-name,
+    not-callable,
+    broad-exception-caught,
+    unsubscriptable-object,
+    duplicate-code
+
+[FORMAT]
+max-line-length=120
+
+[DESIGN]
+max-locals=30

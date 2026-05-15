@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, Request
-from sqlalchemy import select, desc
+"""HTML view routes for the home and search pages."""
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import desc, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.models import Block, Transaction
@@ -11,30 +12,38 @@ router = APIRouter(tags=["home"])
 
 @router.get("/")
 async def index(request: Request, db: Session = Depends(get_db)):
-    blocks = db.execute(select(Block).order_by(desc(Block.number)).limit(10)).scalars().all()
+    """Render the home page with recent blocks and transactions."""
+    blocks = db.execute(
+        select(Block).order_by(desc(Block.number)).limit(10)
+    ).scalars().all()
     txs = db.execute(
         select(Transaction)
         .options(selectinload(Transaction.block))
         .order_by(desc(Transaction.block_number), desc(Transaction.tx_index))
         .limit(10)
     ).scalars().all()
-    return templates.TemplateResponse("index.html", {"request": request, "blocks": blocks, "transactions": txs})
+    return templates.TemplateResponse(
+        "index.html", {"request": request, "blocks": blocks, "transactions": txs}
+    )
 
 
 @router.get("/api/docs")
 async def api_docs(request: Request):
+    """Render the API documentation page."""
     return templates.TemplateResponse("api_docs.html", {"request": request})
 
 
 @router.get("/search")
 async def search(request: Request, q: str, db: Session = Depends(get_db)):
+    """Universal search — routes to block, transaction, or address detail."""
     from app.routes.blocks_views import block_detail
-    from app.routes.transactions_views import transaction_detail
     from app.routes.contracts import address_detail
-    from fastapi import HTTPException
+    from app.routes.transactions_views import transaction_detail
 
     if not q:
-        return templates.TemplateResponse("index.html", {"request": request, "error": "Search query is empty"})
+        return templates.TemplateResponse(
+            "index.html", {"request": request, "error": "Search query is empty"}
+        )
 
     q = q.strip()
 

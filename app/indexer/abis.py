@@ -1,3 +1,4 @@
+"""ERC-20 ABI definition."""
 import json
 
 ERC20_ABI = json.loads("""

@@ -1,8 +1,12 @@
+"""Pydantic response schemas."""
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel
 
+
 class TransactionResponse(BaseModel):
+    """API response schema for a transaction."""
+
     hash: str
     block_number: int
     tx_index: int
@@ -17,9 +21,14 @@ class TransactionResponse(BaseModel):
     contract_address: Optional[str]
 
     class Config:
+        """Pydantic config."""
+
         from_attributes = True
 
+
 class BlockResponse(BaseModel):
+    """API response schema for a block."""
+
     number: int
     hash: str
     parent_hash: str
@@ -31,32 +40,50 @@ class BlockResponse(BaseModel):
     transactions: List[TransactionResponse] = []
 
     class Config:
+        """Pydantic config."""
+
         from_attributes = True
 
+
 class ContractDetails(BaseModel):
+    """Contract metadata."""
+
     creator_tx: str
     creation_block: int
     bytecode_hash: Optional[str]
 
     class Config:
+        """Pydantic config."""
+
         from_attributes = True
 
+
 class TokenBalance(BaseModel):
+    """Token balance entry for an address."""
+
     token_address: str
     symbol: Optional[str]
     decimals: Optional[int]
-    balance: int # Raw balance
+    balance: int  # Raw balance
+
 
 class TokenDetails(BaseModel):
+    """ERC-20 token metadata."""
+
     name: Optional[str]
     symbol: Optional[str]
     decimals: Optional[int]
     total_supply: Optional[str]
 
     class Config:
+        """Pydantic config."""
+
         from_attributes = True
 
+
 class AddressResponse(BaseModel):
+    """API response schema for an address."""
+
     address: str
     first_seen_block: Optional[int]
     is_contract: bool
@@ -66,4 +93,6 @@ class AddressResponse(BaseModel):
     tokens: List[TokenBalance] = []
 
     class Config:
+        """Pydantic config."""
+
         from_attributes = True

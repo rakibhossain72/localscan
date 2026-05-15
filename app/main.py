@@ -1,7 +1,8 @@
+"""FastAPI application factory and global exception handlers."""
 import pathlib
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -15,7 +16,8 @@ _APP_DIR = pathlib.Path(__file__).parent
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
+    """Start background indexer on application startup."""
     start_indexer_thread()
     yield
 
@@ -26,12 +28,14 @@ app.mount("/static", StaticFiles(directory=str(_APP_DIR / "static")), name="stat
 
 
 def _wants_html(request: Request) -> bool:
+    """Return True if the client prefers an HTML response."""
     accept = request.headers.get("accept", "")
     return "text/html" in accept
 
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Render HTML error pages for browser requests, JSON otherwise."""
     if not _wants_html(request):
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
@@ -45,6 +49,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle request validation errors."""
     if not _wants_html(request):
         return JSONResponse({"detail": str(exc)}, status_code=422)
 
@@ -56,7 +61,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 @app.exception_handler(Exception)
-async def generic_exception_handler(request: Request, exc: Exception):
+async def generic_exception_handler(request: Request, _exc: Exception):
+    """Catch-all handler for unhandled exceptions."""
     if not _wants_html(request):
         return JSONResponse({"detail": "Internal server error"}, status_code=500)
 
@@ -71,12 +77,3 @@ app.include_router(views.router)
 app.include_router(blocks.router)
 app.include_router(transactions.router)
 app.include_router(addresses.router)
-
-
-if __name__=="__main__":
-    import uvicorn
-
-    uvicorn.run(
-        app,
-    )
-
