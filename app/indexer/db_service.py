@@ -189,8 +189,11 @@ def upsert_address(session, w3, addr, block_num, is_contract=False):
     if w3:
         try:
             balance = w3.eth.get_balance(addr, block_num)
-        except Exception as exc:  # noqa: BLE001
-            print(f"Failed to fetch balance for {addr} at block {block_num}: {exc}")
+        except Exception:  # noqa: BLE001
+            try:
+                balance = w3.eth.get_balance(addr, "latest")
+            except Exception:  # noqa: BLE001
+                pass
 
     existing = session.get(Address, addr)
     if not existing:
@@ -214,7 +217,10 @@ def sync_on_chain_token_balance(session, w3, address, token_address, block_num):
     """Fetch exact token balance from chain and sync to DB."""
     try:
         contract = w3.eth.contract(address=token_address, abi=ERC20_ABI)
-        balance = contract.functions.balanceOf(address).call(block_identifier=block_num)
+        try:
+            balance = contract.functions.balanceOf(address).call(block_identifier=block_num)
+        except Exception:  # noqa: BLE001
+            balance = contract.functions.balanceOf(address).call(block_identifier="latest")
 
         bal_obj = session.get(TokenBalance, {"address": address, "token_address": token_address})
         if bal_obj:
