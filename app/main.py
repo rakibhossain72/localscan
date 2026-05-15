@@ -1,8 +1,11 @@
+import pathlib
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from app.routes import blocks, transactions, addresses, views
 from app.indexer.background import start_indexer_thread
+
+_APP_DIR = pathlib.Path(__file__).parent
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -13,7 +16,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="LocalScan Indexer API", lifespan=lifespan)
 
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/static", StaticFiles(directory=str(_APP_DIR / "static")), name="static")
 
 app.include_router(views.router)
 app.include_router(blocks.router)

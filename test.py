@@ -66,9 +66,9 @@ def send_eth():
     account = w3.eth.account.from_key(pk)
     
     amount_eth = random.uniform(ETH_MIN, ETH_MAX)
-    amount_wei = w3.to_wei(amount_eth, "ether")
+    amount_wei = w3.to_wei(2, "ether")
     
-    to_addr = random_address()
+    to_addr =  "0xAD16C6F354A438d076A4dF5B1AAb88a1b8eb57E1" #random_address()
     
     nonce = w3.eth.get_transaction_count(account.address, "pending")
     

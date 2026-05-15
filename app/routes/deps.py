@@ -13,7 +13,9 @@ getcontext().prec = 50
 
 w3 = Web3(Web3.HTTPProvider(HTTP_RPC_URL))
 
-templates = Jinja2Templates(directory="app/templates")
+import pathlib
+_HERE = pathlib.Path(__file__).parent.parent  # points to app/
+templates = Jinja2Templates(directory=str(_HERE / "templates"))
 
 
 # ---------------------------------------------------------------------------
