@@ -1,28 +1,20 @@
 """
-Indexer runner — powered by chain-sniper.
+Indexer runner — supports both WebSocket (ws/wss) and HTTP/HTTPS RPC endpoints.
 
-ChainSniper drives block/transaction delivery via WebSocket (eth_subscribe)
-with reorg detection and automatic reconnect.  A synchronous Web3 instance
-is kept alongside for the receipt / balance / call lookups that db_service needs.
+- ws/wss  → chain-sniper drives block delivery via eth_subscribe
+- http/https → polling loop fetches new blocks on POLL_INTERVAL
 """
 
 import asyncio
 import logging
-import sys
-import os
 
 from web3 import Web3
 from sqlalchemy import select
 
-# Make the chain-sniper submodule importable
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "chain-sniper"))
-
-from chain_sniper import ChainSniper
-from chain_sniper.filters import TransactionFilter, LogFilter
-
 from app.db.models import Base, Block
 from app.db.session import SessionLocal, engine
-from app.indexer.config import RPC_URL, HTTP_RPC_URL, CHAIN_ID
+import app.indexer.config as cfg
+from app.indexer.config import is_ws, make_w3
 from app.indexer.chain_state import get_chain_state, update_chain_state
 from app.indexer.db_service import save_block, save_transaction, rollback_block
 
@@ -34,12 +26,10 @@ def _init_db():
 
 
 def _make_block_data(block) -> dict:
-    """Convert a chain-sniper block (AttributeDict / dict) to the shape db_service expects."""
     from datetime import datetime
     from zoneinfo import ZoneInfo
 
     def _hex(val) -> str:
-        """Return a lowercase hex string WITHOUT 0x prefix, matching DB storage."""
         if isinstance(val, (bytes, bytearray)):
             return val.hex()
         s = str(val)
@@ -61,119 +51,142 @@ def _make_block_data(block) -> dict:
     }
 
 
-async def run_indexer_async():
-    _init_db()
+# ---------------------------------------------------------------------------
+# Shared block processor (used by both modes)
+# ---------------------------------------------------------------------------
 
-    # Sync Web3 for receipt / balance / call lookups used by db_service
-    w3 = Web3(Web3.HTTPProvider(HTTP_RPC_URL))
+def _process_block_sync(session, w3, block_data: dict, last_block: int, last_hash: str):
+    block_number = block_data["number"]
+    if block_number is None or block_number <= last_block:
+        return last_block, last_hash
+
+    save_block(session, block_data, w3)
+    for i, tx in enumerate(block_data["transactions"]):
+        save_transaction(session, tx, block_number, i, w3)
+
+    update_chain_state(session, block_number, block_data["hash"])
+    session.commit()
+
+    logger.info("Indexed block %s  txs=%s", block_number, block_data["tx_count"])
+    return block_number, block_data["hash"]
+
+
+# ---------------------------------------------------------------------------
+# WebSocket mode — chain-sniper for subscriptions, sync w3 for data fetching
+# ---------------------------------------------------------------------------
+
+async def _run_ws(session):
+    from chain_sniper import ChainSniper
+    from chain_sniper.filters import LogFilter
+
+    # Sync w3 for receipt/balance/call lookups in db_service
+    w3 = make_w3(cfg.RPC_URL)
     while not w3.is_connected():
-        logger.warning("RPC not connected, retrying...")
+        logger.warning("RPC not connected, retrying in 5s...")
         await asyncio.sleep(5)
-    logger.info("Connected to RPC: %s", RPC_URL)
+    logger.info("Connected to RPC: %s", cfg.RPC_URL)
 
-    session = SessionLocal()
     last_block, last_hash = get_chain_state(session)
-    logger.info("Resuming from block %s (hash: %s)", last_block, last_hash)
+    logger.info("WS mode — resuming from block %s", last_block)
 
-    # ------------------------------------------------------------------ #
-    # chain-sniper setup
-    # ------------------------------------------------------------------ #
-    sniper = ChainSniper(RPC_URL, chain_id=CHAIN_ID)
-
-    # Fetch ALL transactions in every block
+    sniper = ChainSniper(cfg.RPC_URL, chain_id=cfg.CHAIN_ID)
     sniper.block_detail("full_block")
 
-    # Subscribe to ERC-20 Transfer logs at the node level
     TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
     log_filter = LogFilter()
     log_filter.subscribe(topics=[TRANSFER_TOPIC])
     sniper.filter(log_filter=log_filter)
 
-    # ------------------------------------------------------------------ #
-    # Callbacks
-    # ------------------------------------------------------------------ #
-
-    # Serialise block processing — one block at a time, in order.
     _process_lock = asyncio.Lock()
-
-    def _process_block_sync(block_data: dict) -> tuple:
-        """
-        All blocking I/O (receipt fetches, balance calls, DB writes) runs here
-        inside a thread-pool worker so the event loop is never stalled.
-        Returns (new_last_block, new_last_hash, reorg: bool).
-        """
-        nonlocal last_block, last_hash
-
-        block_number = block_data["number"]
-
-        if block_number is None or block_number <= last_block:
-            return last_block, last_hash, False
-
-        genesis_placeholder = "0" * 64
-        # if last_hash and last_hash != genesis_placeholder:
-        #     if block_data["parent_hash"] != last_hash:
-        #         logger.warning("Reorg detected at block %s", block_number)
-        #         rollback_block(session, last_block)
-        #         rolled_back = last_block - 1
-
-        #         stmt = select(Block.hash).where(Block.number == rolled_back)
-        #         prev_hash = session.execute(stmt).scalar_one_or_none()
-        #         new_hash = prev_hash or genesis_placeholder
-
-        #         update_chain_state(session, rolled_back, new_hash)
-        #         session.commit()
-        #         return rolled_back, new_hash, True
-
-        save_block(session, block_data, w3)
-
-        for i, tx in enumerate(block_data["transactions"]):
-            save_transaction(session, tx, block_number, i, w3)
-
-        update_chain_state(session, block_number, block_data["hash"])
-        session.commit()
-
-        logger.info("Indexed block %s  txs=%s", block_number, block_data["tx_count"])
-        return block_number, block_data["hash"], False
 
     @sniper.on_block
     async def handle_block(block):
         nonlocal last_block, last_hash
-
         block_data = _make_block_data(block)
         if block_data["number"] is None or block_data["number"] <= last_block:
             return
-
         async with _process_lock:
             loop = asyncio.get_running_loop()
             try:
-                new_lb, new_lh, _ = await loop.run_in_executor(
-                    None, _process_block_sync, block_data
+                new_lb, new_lh = await loop.run_in_executor(
+                    None, _process_block_sync, session, w3, block_data, last_block, last_hash
                 )
-                last_block = new_lb
-                last_hash = new_lh
+                last_block, last_hash = new_lb, new_lh
             except Exception as exc:
                 logger.exception("Error processing block %s: %s", block_data["number"], exc)
                 session.rollback()
-                # Re-sync from DB so reorg detection doesn't false-positive
-                # on every subsequent block after a failed commit.
                 last_block, last_hash = get_chain_state(session)
 
     @sniper.on_reorg
     async def handle_reorg(info):
-        logger.warning("Chain-sniper reorg signal: %s", info)
+        logger.warning("Reorg signal: %s", info)
 
     @sniper.on_error
     async def handle_error(exc):
         logger.error("Chain-sniper error: %s", exc)
 
-    # ------------------------------------------------------------------ #
-    # Start
-    # ------------------------------------------------------------------ #
-    logger.info("Starting chain-sniper indexer (WebSocket: %s)", RPC_URL)
+    logger.info("Starting chain-sniper indexer (WS: %s)", cfg.RPC_URL)
     await sniper.start()
 
 
+# ---------------------------------------------------------------------------
+# HTTP polling mode
+# ---------------------------------------------------------------------------
+
+async def _run_http(w3, session):
+    last_block, last_hash = get_chain_state(session)
+    logger.info("HTTP polling mode — resuming from block %s (interval: %ss)", last_block, cfg.POLL_INTERVAL)
+
+    _process_lock = asyncio.Lock()
+
+    while True:
+        try:
+            latest = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: w3.eth.block_number
+            )
+
+            if latest > last_block:
+                for num in range(last_block + 1, latest + 1):
+                    block = await asyncio.get_running_loop().run_in_executor(
+                        None, lambda n=num: w3.eth.get_block(n, full_transactions=True)
+                    )
+                    block_data = _make_block_data(block)
+                    async with _process_lock:
+                        try:
+                            last_block, last_hash = await asyncio.get_running_loop().run_in_executor(
+                                None, _process_block_sync, session, w3, block_data, last_block, last_hash
+                            )
+                        except Exception as exc:
+                            logger.exception("Error processing block %s: %s", num, exc)
+                            session.rollback()
+                            last_block, last_hash = get_chain_state(session)
+                            break
+
+        except Exception as exc:
+            logger.error("Polling error: %s", exc)
+
+        await asyncio.sleep(cfg.POLL_INTERVAL)
+
+
+# ---------------------------------------------------------------------------
+# Entry points
+# ---------------------------------------------------------------------------
+
+async def run_indexer_async():
+    _init_db()
+    session = SessionLocal()
+
+    if is_ws(cfg.RPC_URL):
+        await _run_ws(session)
+    else:
+        w3 = make_w3(cfg.RPC_URL)
+        while not w3.is_connected():
+            logger.warning("RPC not connected, retrying in 5s...")
+            await asyncio.sleep(5)
+        logger.info("Connected to RPC: %s", cfg.RPC_URL)
+        await _run_http(w3, session)
+
+
 def run_indexer():
-    """Synchronous entry point — runs the async indexer in a new event loop."""
     logging.basicConfig(level=logging.INFO)
     asyncio.run(run_indexer_async())

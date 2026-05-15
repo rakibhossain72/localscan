@@ -12,12 +12,7 @@ def main():
     parser.add_argument(
         "--rpc-url",
         default="ws://127.0.0.1:8545",
-        help="WebSocket RPC URL for block subscription (default: ws://127.0.0.1:8545)",
-    )
-    parser.add_argument(
-        "--http-rpc-url",
-        default="http://127.0.0.1:8545",
-        help="HTTP RPC URL for receipts/calls (default: http://127.0.0.1:8545)",
+        help="RPC URL — ws/wss for WebSocket subscription, http/https for polling (default: ws://127.0.0.1:8545)",
     )
     parser.add_argument(
         "--keep-db",
@@ -34,7 +29,6 @@ def main():
     # Patch config before the app modules are imported by uvicorn
     import app.indexer.config as cfg
     cfg.RPC_URL = args.rpc_url
-    cfg.HTTP_RPC_URL = args.http_rpc_url
     cfg.DB_PATH = args.db
 
     db_path = pathlib.Path(args.db)

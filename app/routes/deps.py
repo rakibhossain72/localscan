@@ -7,11 +7,11 @@ from decimal import Decimal, getcontext
 from fastapi.templating import Jinja2Templates
 from web3 import Web3
 
-from app.indexer.config import HTTP_RPC_URL
+import app.indexer.config as _cfg
 
 getcontext().prec = 50
 
-w3 = Web3(Web3.HTTPProvider(HTTP_RPC_URL))
+w3 = _cfg.make_w3(_cfg.RPC_URL)
 
 import pathlib
 _HERE = pathlib.Path(__file__).parent.parent  # points to app/
