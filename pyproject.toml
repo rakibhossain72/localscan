@@ -6,7 +6,25 @@ build-backend = "setuptools.build_meta"
 name = "localscan"
 version = "0.1.0"
 description = "A lightweight EVM blockchain indexer and explorer"
+readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.10"
+keywords = ["blockchain", "evm", "indexer", "explorer", "web3"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries",
+]
+
+[project.urls]
+Homepage = "https://github.com/rakibhossain72/localscan"
+Repository = "https://github.com/rakibhossain72/localscan"
+Issues = "https://github.com/rakibhossain72/localscan/issues"
+
 dependencies = [
     "fastapi==0.128.0",
     "uvicorn[standard]>=0.40.0",
