@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "localscan"
-version = "0.1.0"
+version = "0.1.2"
 description = "A lightweight EVM blockchain indexer and explorer"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -21,10 +21,11 @@ classifiers = [
 ]
 
 dependencies = [
+    "chain-sniper==0.1.0",
     "fastapi==0.128.0",
     "uvicorn[standard]>=0.40.0",
     "SQLAlchemy==2.0.46",
-    "web3==7.14.0",
+    "web3>=7.14.1",
     "aiohttp==3.13.3",
     "websockets==15.0.1",
     "pydantic==2.12.5",
@@ -44,7 +45,7 @@ localscan = "app.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["app*", "chain_sniper*"]
+include = ["app*"]
 
 [tool.setuptools.package-data]
 "app" = ["templates/**/*", "static/**/*", "static/*"]
