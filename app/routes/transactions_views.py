@@ -1,16 +1,43 @@
+import json
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.db.models import Block, Token, TokenTransfer, Transaction
+from app.db.models import Block, Contract, Token, TokenTransfer, Transaction
 from app.dependencies import get_db
 from app.indexer.db_service import save_block, save_transaction
 from app.indexer.parser import parse_block
 from app.routes.deps import templates, w3
 
 router = APIRouter(tags=["transactions"])
+
+
+def _decode_input(tx, db) -> dict | None:
+    """Try to decode tx input using the to_address contract ABI. Returns decoded dict or None."""
+    if not tx.to_address or not tx.input or tx.input in ("", "0x", None):
+        return None
+    contract = db.get(Contract, tx.to_address)
+    if not contract or not contract.abi_json:
+        return None
+    try:
+        abi = json.loads(contract.abi_json)
+        w3_contract = w3.eth.contract(address=tx.to_address, abi=abi)
+        input_bytes = bytes.fromhex(tx.input.lstrip("0x") if tx.input.startswith("0x") else tx.input)
+        fn_obj, decoded_args = w3_contract.decode_function_input(input_bytes)
+        # Convert bytes values to hex for display
+        clean_args = {}
+        for k, v in decoded_args.items():
+            if isinstance(v, bytes):
+                clean_args[k] = "0x" + v.hex()
+            elif isinstance(v, (list, tuple)):
+                clean_args[k] = ["0x" + i.hex() if isinstance(i, bytes) else i for i in v]
+            else:
+                clean_args[k] = v
+        return {"function": fn_obj.fn_name, "args": clean_args}
+    except Exception:
+        return None
 
 
 @router.get("/txs")
@@ -67,8 +94,15 @@ async def transaction_detail(request: Request, tx_hash: str, db: Session = Depen
             "decimals": decimals,
         })
 
+    is_contract_creation = tx.contract_address is not None
+    decoded_input = None
+    if not is_contract_creation:
+        decoded_input = _decode_input(tx, db)
+
     return templates.TemplateResponse("transaction.html", {
         "request": request,
         "transaction": tx,
         "token_transfers": token_transfers,
+        "is_contract_creation": is_contract_creation,
+        "decoded_input": decoded_input,
     })

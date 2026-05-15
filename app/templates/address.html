@@ -122,8 +122,14 @@
                                 {% if tx.from_address == address.address %}
                                 <div class="flex items-center space-x-2">
                                     <span class="bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded text-[10px] font-bold">OUT</span>
-                                    <a href="/address/{{ tx.to_address }}" class="text-blue-500 text-xs truncate block w-24">{% if tx.to_address %}{{ tx.to_address[:12] }}...{% else %}Contract Creation{% endif %}</a>
-                                </div>
+                                    <a href="/address/{% if tx.to_address %}{{ tx.to_address }}{% else %}{{ tx.contract_address }}{% endif %}"
+                                        class="text-blue-500 text-xs truncate block w-24">
+                                            {% if tx.to_address %}
+                                                {{ tx.to_address[:12] }}...
+                                            {% else %}
+                                                Contract Creation
+                                            {% endif %}
+                                    </a>
                                 {% else %}
                                 <div class="flex items-center space-x-2">
                                     <span class="bg-green-50 text-green-700 px-1.5 py-0.5 rounded text-[10px] font-bold">IN</span>

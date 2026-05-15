@@ -82,8 +82,23 @@
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-50 pb-4">
                 <div class="text-sm font-medium text-slate-500">To:</div>
-                <div class="md:col-span-2 text-sm text-blue-600 font-mono break-all"><a href="/address/{{ transaction.to_address }}" class="hover:underline">{{ transaction.to_address }}</a></div>
+                <div class="md:col-span-2 text-sm text-blue-600 font-mono break-all">
+                    {% if is_contract_creation %}
+                    <span class="text-slate-400 italic">Contract Creation</span>
+                    {% else %}
+                    <a href="/address/{{ transaction.to_address }}" class="hover:underline">{{ transaction.to_address }}</a>
+                    {% endif %}
+                </div>
             </div>
+
+            {% if is_contract_creation %}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-50 pb-4">
+                <div class="text-sm font-medium text-slate-500">Contract Created:</div>
+                <div class="md:col-span-2 text-sm text-blue-600 font-mono break-all">
+                    <a href="/address/{{ transaction.contract_address }}" class="hover:underline">{{ transaction.contract_address }}</a>
+                </div>
+            </div>
+            {% endif %}
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-50 pb-4">
                 <div class="text-sm font-medium text-slate-500">Value:</div>
@@ -100,10 +115,37 @@
                 <div class="md:col-span-2 text-sm text-slate-900">{{ transaction.gas_used if transaction.gas_used else '0' }}</div>
             </div>
 
+            {% if not is_contract_creation %}
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-50 pb-4">
                 <div class="text-sm font-medium text-slate-500">Input Data:</div>
                 <div class="md:col-span-2 text-sm text-slate-900 font-mono break-all bg-slate-50 p-2 rounded border border-slate-100">0x{{ transaction.input }}</div>
             </div>
+
+            {% if decoded_input %}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-50 pb-4">
+                <div class="text-sm font-medium text-slate-500">Decoded Input:</div>
+                <div class="md:col-span-2 text-sm text-slate-900 bg-slate-50 p-3 rounded border border-slate-100 space-y-2">
+                    <div>
+                        <span class="text-slate-500 text-xs uppercase tracking-wider">Function</span>
+                        <div class="font-mono font-semibold text-blue-700 mt-0.5">{{ decoded_input.function }}</div>
+                    </div>
+                    {% if decoded_input.args %}
+                    <div>
+                        <span class="text-slate-500 text-xs uppercase tracking-wider">Parameters</span>
+                        <div class="mt-1 space-y-1">
+                            {% for key, val in decoded_input.args.items() %}
+                            <div class="flex flex-wrap gap-x-2">
+                                <span class="text-slate-500 font-medium">{{ key }}:</span>
+                                <span class="font-mono break-all text-slate-800">{{ val }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            {% endif %}
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-50 pb-4">
                 <div class="text-sm font-medium text-slate-500">Nonce:</div>
